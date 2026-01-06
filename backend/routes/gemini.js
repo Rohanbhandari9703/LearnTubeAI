@@ -4,7 +4,7 @@ const router = express.Router();
 
 export async function getGeminiSubtopics(topic) {
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API);
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' }); // Use your available model name
+  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' }); // Use your available model name
   const prompt = `You are a study planning assistant. Break down the topic '${topic}' into the most important subtopics a student must understand. Classify them as high, medium, or low importance. Return in JSON format like this: [ { "subtopic": "ER Model", "importance": "high" }, ... ]`;
   try {
     const result = await model.generateContent(prompt);

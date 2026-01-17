@@ -46,6 +46,14 @@ The platform provides an end-to-end learning flow — from topic input to embedd
   - Remaining videos
   - Overall progress percentage
 
+### ✅ User Authentication & Data Persistence
+- **User Registration & Login**: Secure email/password authentication
+- **JWT-based Authentication**: HTTP-only cookies for secure sessions
+- **Playlist Saving**: Save generated playlists to your account
+- **Progress Tracking**: Track learning progress across all playlists
+- **Saved Videos**: Save favorite videos for later viewing
+- **User-specific Data**: All data is user-specific and secure
+
 ### ✅ Clean & Focused User Interface
 - Simple, distraction-free layout
 - Designed for efficient learning
@@ -74,3 +82,64 @@ The application follows a **deterministic algorithm** to ensure important topics
 - Total weight is calculated as the sum of all subtopic weights
 - Each subtopic’s relative weight is computed using:
 
+AI-YouTube-Playlist-Generator/
+│
+├── backend/
+│   ├── config/                  # Configuration files
+│   │   └── db.js               # MongoDB connection
+│   ├── controllers/            # Route controllers
+│   │   ├── authController.js   # Authentication logic
+│   │   ├── playlistController.js
+│   │   ├── progressController.js
+│   │   └── savedVideoController.js
+│   ├── middleware/             # Express middleware
+│   │   ├── auth.js             # JWT authentication
+│   │   └── errorHandler.js     # Error handling
+│   ├── models/                 # Mongoose schemas
+│   │   ├── User.js
+│   │   ├── Playlist.js
+│   │   ├── Progress.js
+│   │   └── SavedVideo.js
+│   ├── routes/                 # API routes
+│   │   ├── auth.js             # Auth routes
+│   │   ├── playlists.js        # Playlist routes
+│   │   ├── progress.js         # Progress routes
+│   │   ├── savedVideos.js       # Saved video routes
+│   │   ├── gemini.js           # AI subtopic generation
+│   │   ├── youtube.js           # YouTube search
+│   │   └── timeAllocator.js     # Time allocation
+│   ├── .env                    # Environment variables (not committed)
+│   ├── .gitignore              # Backend git ignore
+│   ├── index.js                # Backend entry point
+│   ├── package.json            # Backend dependencies
+│   ├── package-lock.json
+│   └── BACKEND_ARCHITECTURE.md  # Detailed backend documentation
+│
+├── frontend/
+│   ├── components/             # Reusable React components
+│   ├── src/                    # React source code
+│   ├── public/                 # Static assets
+│   ├── node_modules/           # Frontend dependencies
+│   ├── .gitignore
+│   ├── eslint.config.js
+│   ├── index.html
+│   ├── package.json            # Frontend dependencies
+│   ├── package-lock.json
+│   ├── vite.config.js
+│   └── README.md               # Frontend-specific README (optional)
+│
+├── README.md                   # Main project README
+└── .gitignore                  # Root git ignore
+
+git clone https://github.com/your-username/your-repo-name.git
+cd your-repo-name
+
+PORT=5000
+MONGO_URI=your_mongodb_connection_string
+JWT_SECRET=your_super_secret_jwt_key_change_this_in_production
+GEMINI_API_KEY=your_gemini_api_key
+YOUTUBE_API_KEY=your_youtube_api_key
+FRONTEND_URL=http://localhost:5173
+NODE_ENV=development
+
+npm start

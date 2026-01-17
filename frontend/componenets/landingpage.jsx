@@ -1,7 +1,8 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { PlayCircle, Sparkles, Clock, Brain } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { PlayCircle, Sparkles, Clock, Brain, LogOut } from "lucide-react";
+import { useNavigate, Link } from "react-router-dom";
+import axios from "axios";
 
 // Simple reusable button (no Next.js / shadcn dependency)
 function Button({ children }) {
@@ -23,6 +24,29 @@ export default function LandingPage() {
   const [time, setTime] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    // Check if user is logged in
+    const userData = localStorage.getItem("user");
+    if (userData) {
+      setUser(JSON.parse(userData));
+    }
+  }, []);
+
+  const handleLogout = async () => {
+    try {
+      await axios.post("http://localhost:5000/api/auth/logout", {}, {
+        withCredentials: true,
+      });
+      localStorage.removeItem("user");
+      setUser(null);
+    } catch (err) {
+      console.error("Logout error:", err);
+      localStorage.removeItem("user");
+      setUser(null);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -53,6 +77,42 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-black via-zinc-900 to-black text-white">
+      {/* Navigation Bar */}
+      <nav className="relative z-10 max-w-6xl mx-auto px-6 py-6 flex justify-between items-center">
+        <div className="text-2xl font-bold">
+          <span className="text-blue-500">LearnTube</span> AI
+        </div>
+        <div className="flex items-center gap-4">
+          {user ? (
+            <>
+              <span className="text-zinc-300">Welcome, {user.name}</span>
+              <button
+                onClick={handleLogout}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 transition"
+              >
+                <LogOut size={18} />
+                Logout
+              </button>
+            </>
+          ) : (
+            <>
+              <Link
+                to="/login"
+                className="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 transition"
+              >
+                Sign In
+              </Link>
+              <Link
+                to="/signup"
+                className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 transition"
+              >
+                Sign Up
+              </Link>
+            </>
+          )}
+        </div>
+      </nav>
+
       {/* Hero Section */}
       <section className="relative overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_#3b82f6,_transparent_40%)] opacity-30" />

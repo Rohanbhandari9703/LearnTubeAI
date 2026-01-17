@@ -1,6 +1,9 @@
 import React, { useState, useMemo, useEffect } from "react";
 import axios from "axios";
 import { motion } from "framer-motion";
+import { CheckCircle2, Circle } from "lucide-react";
+import YouTubeEmbed from "./YouTubeEmbed";
+import ProgressDashboard from "./ProgressDashboard";
 
 const MainPage = () => {
   const [subject, setSubject] = useState("");
@@ -9,6 +12,7 @@ const MainPage = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [formError, setFormError] = useState("");
+  const [completedVideos, setCompletedVideos] = useState(new Set());
 
   const totalDurationInMinutes = useMemo(() => {
     return plan.reduce((sum, item) => sum + (item.timeAllocated || 0), 0);
@@ -33,6 +37,9 @@ const MainPage = () => {
         totalMinutes: Number(time) * 60,
       });
       setPlan(res.data);
+      // Reset completed videos when generating new plan
+      setCompletedVideos(new Set());
+      localStorage.removeItem("completedVideos");
     } catch (err) {
       setError(err.response?.data?.error || "Network error");
     }
@@ -40,6 +47,7 @@ const MainPage = () => {
     setLoading(false);
   };
 
+  // Load plan and progress from localStorage
   useEffect(() => {
     try {
       const saved = localStorage.getItem("playlistData");
@@ -49,7 +57,45 @@ const MainPage = () => {
         else if (parsed.plan) setPlan(parsed.plan);
       }
     } catch {}
+
+    // Load completed videos
+    try {
+      const saved = localStorage.getItem("completedVideos");
+      if (saved) {
+        const completed = JSON.parse(saved);
+        setCompletedVideos(new Set(completed));
+      }
+    } catch {}
   }, []);
+
+  // Save completed videos to localStorage whenever it changes
+  useEffect(() => {
+    if (completedVideos.size > 0 || plan.length > 0) {
+      localStorage.setItem("completedVideos", JSON.stringify(Array.from(completedVideos)));
+    }
+  }, [completedVideos, plan]);
+
+  // Toggle video completion
+  const toggleVideoCompletion = (videoUrl) => {
+    setCompletedVideos((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(videoUrl)) {
+        newSet.delete(videoUrl);
+      } else {
+        newSet.add(videoUrl);
+      }
+      return newSet;
+    });
+  };
+
+  // Calculate progress stats
+  const totalVideos = useMemo(() => {
+    return plan.filter((item) => item.videoUrl).length;
+  }, [plan]);
+
+  const completedCount = useMemo(() => {
+    return plan.filter((item) => item.videoUrl && completedVideos.has(item.videoUrl)).length;
+  }, [plan, completedVideos]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-black via-zinc-900 to-black text-white px-6 py-20">
@@ -108,53 +154,70 @@ const MainPage = () => {
             📘 AI-Generated Study Plan
           </h2>
 
+          {/* Progress Dashboard */}
+          {totalVideos > 0 && (
+            <div className="mb-8">
+              <ProgressDashboard 
+                totalVideos={totalVideos}
+                completedVideos={completedCount}
+              />
+            </div>
+          )}
+
           <div className="space-y-6">
             {plan.map((item, idx) => {
-              // Extract video ID from YouTube URL to get thumbnail
-              const getYouTubeThumbnail = (url) => {
-                if (!url) return null;
-                const match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\n?#]+)/);
-                return match ? `https://img.youtube.com/vi/${match[1]}/maxresdefault.jpg` : null;
-              };
-              const thumbnail = getYouTubeThumbnail(item.videoUrl);
-
+              const isCompleted = item.videoUrl && completedVideos.has(item.videoUrl);
+              
               return (
                 <motion.div
                   key={idx}
                   whileHover={{ scale: 1.01 }}
-                  className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 shadow"
+                  className={`bg-zinc-900 border rounded-xl p-6 shadow transition-colors ${
+                    isCompleted 
+                      ? 'border-green-700/50 bg-green-900/10' 
+                      : 'border-zinc-800'
+                  }`}
                 >
                   {item.videoUrl ? (
-                    <a
-                      href={item.videoUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex gap-4"
-                    >
-                      {/* Thumbnail */}
-                      {thumbnail && (
-                        <img
-                          src={thumbnail}
-                          alt={item.videoTitle}
-                          className="w-32 h-24 rounded-lg object-cover flex-shrink-0"
-                        />
-                      )}
-                      {/* Content */}
-                      <div className="flex-1 flex flex-col justify-center">
-                        <h3 className="text-lg font-semibold text-blue-400 hover:underline">
-                          {item.videoTitle}
-                        </h3>
-                        <p className="text-sm text-zinc-400 mt-2">
-                          Topic: <span className="font-medium">{item.subtopic}</span>
-                        </p>
-                        <p className="text-sm text-zinc-400">
-                          Importance: <span className="font-medium">{item.importance}</span>
-                        </p>
-                        <p className="text-sm text-zinc-400">
-                          Time: <span className="font-medium">{item.timeAllocated} min</span>
-                        </p>
+                    <div className="space-y-4">
+                      {/* Video Info with Checkbox */}
+                      <div className="flex items-start gap-4">
+                        <button
+                          onClick={() => toggleVideoCompletion(item.videoUrl)}
+                          className="flex-shrink-0 mt-1 transition-transform hover:scale-110"
+                        >
+                          {isCompleted ? (
+                            <CheckCircle2 className="w-6 h-6 text-green-500" fill="currentColor" />
+                          ) : (
+                            <Circle className="w-6 h-6 text-zinc-500 hover:text-blue-500" />
+                          )}
+                        </button>
+                        <div className="flex-1">
+                          <h3 className={`text-lg font-semibold mb-3 ${
+                            isCompleted ? 'text-green-400 line-through' : 'text-blue-400'
+                          }`}>
+                            {item.videoTitle}
+                          </h3>
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm text-zinc-400 mb-4">
+                            <p>
+                              Topic: <span className="font-medium text-white">{item.subtopic}</span>
+                            </p>
+                            <p>
+                              Importance: <span className="font-medium text-white">{item.importance}</span>
+                            </p>
+                            <p>
+                              Time: <span className="font-medium text-white">{item.timeAllocated} min</span>
+                            </p>
+                          </div>
+                        </div>
                       </div>
-                    </a>
+                      {/* Embedded Video */}
+                      <YouTubeEmbed 
+                        videoUrl={item.videoUrl} 
+                        videoTitle={item.videoTitle}
+                        className="w-full"
+                      />
+                    </div>
                   ) : (
                     <div>
                       <h3 className="text-lg font-semibold text-blue-400">

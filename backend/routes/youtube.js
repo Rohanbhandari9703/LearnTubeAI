@@ -4,11 +4,7 @@ const router = express.Router();
 
 // POST /api/youtube/search
 router.post('/search', async (req, res) => {
-  const { query, maxDuration: initialMaxDuration } = req.body;
-  const threshold = 5; // minutes to increase on each retry
-  const maxRetries = 4; // max 4 retries (20 minutes extra)
-  let retryCount = 0;
-  let currentMaxDuration = initialMaxDuration;
+  const { query, maxDuration } = req.body;
 
   try {
     const parseDuration = (iso) => {
@@ -19,83 +15,86 @@ router.post('/search', async (req, res) => {
       return hours * 60 + mins + secs / 60;
     };
 
-    const minDuration = 2; // minutes
+    const minDuration = 2; // minutes - minimum video duration
+    const searchMaxResults = 50; // fetch more results to get better options
 
-    while (retryCount <= maxRetries) {
-      console.log(`🔍 YouTube search attempt ${retryCount} for: "${query}"`);
-      // Search YouTube videos (fetch more to filter out Shorts)
-      const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=15&q=${encodeURIComponent(query)}&key=${process.env.YOUTUBE_API}`;
-      console.log('📡 Search URL:', searchUrl.substring(0, 100) + '...');
-      const searchRes = await axios.get(searchUrl);
-      console.log('📦 Search response status:', searchRes.status);
-      console.log('📦 Search response items count:', searchRes.data.items ? searchRes.data.items.length : 0);
-      const videos = searchRes.data.items;
+    console.log(`🔍 YouTube search for: "${query}" (max duration: ${maxDuration} min)`);
+    
+    // Search YouTube videos
+    const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=${searchMaxResults}&q=${encodeURIComponent(query)}&key=${process.env.YOUTUBE_API}`;
+    const searchRes = await axios.get(searchUrl);
+    const videos = searchRes.data.items;
 
-      if (!videos || videos.length === 0) {
-        console.log('❌ No videos found in search');
-        return res.status(404).json({ error: 'No video found' });
-      }
-
-      // First attempt: try to filter from search results alone
-      if (retryCount === 0) {
-        // Get the first video from search results
-        const firstVideo = videos[0];
-        if (firstVideo) {
-          console.log('✅ Returning first search result:', firstVideo.snippet.title);
-          return res.json({
-            videoTitle: firstVideo.snippet.title,
-            videoUrl: `https://www.youtube.com/watch?v=${firstVideo.id.videoId}`
-          });
-        }
-      }
-
-      // Retry attempts: get detailed info for filtering
-      console.log('📡 Getting detailed video info...');
-      const videoIds = videos.map(v => v.id.videoId).join(',');
-      const detailsUrl = `https://www.googleapis.com/youtube/v3/videos?part=contentDetails,snippet,statistics&id=${videoIds}&key=${process.env.YOUTUBE_API}`;
-      const detailsRes = await axios.get(detailsUrl);
-      console.log('📦 Details response status:', detailsRes.status);
-      console.log('📦 Details response items count:', detailsRes.data.items ? detailsRes.data.items.length : 0);
-      const detailsList = detailsRes.data.items;
-
-      // Filter by duration
-      let filtered = detailsList
-        .map(details => {
-          const duration = parseDuration(details.contentDetails.duration);
-          return {
-            videoTitle: details.snippet.title,
-            videoUrl: `https://www.youtube.com/watch?v=${details.id}`,
-            duration,
-            likeCount: details.statistics && details.statistics.likeCount ? parseInt(details.statistics.likeCount) : 0,
-            commentCount: details.statistics && details.statistics.commentCount ? parseInt(details.statistics.commentCount) : 0
-          };
-        })
-        .filter(video => {
-          if (video.duration < minDuration) return false;
-          if (currentMaxDuration && (video.duration > currentMaxDuration || (currentMaxDuration - video.duration) > currentMaxDuration / 2)) return false;
-          return true;
-        });
-
-      // Sort by likes and comments (descending)
-      filtered.sort((a, b) => {
-        if (b.likeCount !== a.likeCount) return b.likeCount - a.likeCount;
-        return b.commentCount - a.commentCount;
-      });
-
-      // If we found videos, return the top one
-      if (filtered.length > 0) {
-        return res.json(filtered[0]);
-      }
-
-      // No videos found, increase duration and retry
-      retryCount++;
-      if (retryCount <= maxRetries) {
-        currentMaxDuration += threshold;
-      }
+    if (!videos || videos.length === 0) {
+      console.log('❌ No videos found in search');
+      return res.status(404).json({ error: 'No video found' });
     }
 
-    // All retries exhausted
-    res.status(400).json({ error: 'No video found within duration range' });
+    // Get detailed info for all videos (duration, statistics)
+    console.log('📡 Getting detailed video info for filtering...');
+    const videoIds = videos.map(v => v.id.videoId).join(',');
+    const detailsUrl = `https://www.googleapis.com/youtube/v3/videos?part=contentDetails,snippet,statistics&id=${videoIds}&key=${process.env.YOUTUBE_API}`;
+    const detailsRes = await axios.get(detailsUrl);
+    const detailsList = detailsRes.data.items;
+
+    // Filter and score videos: duration >= minDuration AND duration < maxDuration
+    const filtered = detailsList
+      .map(details => {
+        const duration = parseDuration(details.contentDetails.duration);
+        const likeCount = details.statistics?.likeCount ? parseInt(details.statistics.likeCount) : 0;
+        const commentCount = details.statistics?.commentCount ? parseInt(details.statistics.commentCount) : 0;
+        const viewCount = details.statistics?.viewCount ? parseInt(details.statistics.viewCount) : 0;
+        
+        // Calculate engagement score (likes + comments normalized by views, with bonus for comments)
+        const engagementScore = viewCount > 0 
+          ? ((likeCount + commentCount * 2) / viewCount) * 1000000 
+          : 0;
+
+        return {
+          videoTitle: details.snippet.title,
+          videoUrl: `https://www.youtube.com/watch?v=${details.id}`,
+          duration,
+          likeCount,
+          commentCount,
+          viewCount,
+          engagementScore, // Higher is better
+        };
+      })
+      .filter(video => {
+        // Filter out shorts (videos less than 2 minutes)
+        if (video.duration < minDuration) return false;
+        // Only include videos with duration less than maxDuration
+        if (maxDuration && video.duration >= maxDuration) return false;
+        return true;
+      });
+
+    // Sort by engagement score (primary), then likes, then comments
+    filtered.sort((a, b) => {
+      // Primary sort: engagement score (most relevant metric)
+      if (Math.abs(b.engagementScore - a.engagementScore) > 0.1) {
+        return b.engagementScore - a.engagementScore;
+      }
+      // Secondary sort: likes
+      if (b.likeCount !== a.likeCount) {
+        return b.likeCount - a.likeCount;
+      }
+      // Tertiary sort: comments
+      return b.commentCount - a.commentCount;
+    });
+
+    if (filtered.length === 0) {
+      console.log('❌ No videos found matching duration criteria');
+      return res.status(404).json({ error: 'No video found within duration range' });
+    }
+
+    console.log(`✅ Found ${filtered.length} videos matching criteria`);
+    
+    // Return array of videos (sorted by engagement)
+    return res.json({
+      videos: filtered,
+      currentIndex: 0, // Always start with index 0
+      totalVideos: filtered.length
+    });
   } catch (err) {
     console.log('❌ YouTube search error:', err.message);
     console.log('⚠️ Error response:', err.response?.data || 'No response data');

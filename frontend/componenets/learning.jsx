@@ -1,12 +1,16 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { CheckCircle2, Circle } from 'lucide-react';
+import { CheckCircle2, Circle, RefreshCw, Edit2 } from 'lucide-react';
 import YouTubeEmbed from './YouTubeEmbed';
 import ProgressDashboard from './ProgressDashboard';
+import axios from 'axios';
 
 export default function Learning() {
   const [data, setData] = useState(null);
   const [completedVideos, setCompletedVideos] = useState(new Set());
+  const [reloadingVideoIndex, setReloadingVideoIndex] = useState(null);
+  const [editingTimeIndex, setEditingTimeIndex] = useState(null);
+  const [editTimeValue, setEditTimeValue] = useState("");
 
   useEffect(() => {
     try {
@@ -65,6 +69,123 @@ export default function Learning() {
   const completedCount = useMemo(() => {
     return items.filter((item) => item.videoUrl && completedVideos.has(item.videoUrl)).length;
   }, [items, completedVideos]);
+
+  // Reload video for a specific topic - cycles through video options
+  const handleReloadVideo = async (index) => {
+    const item = items[index];
+    if (!item || !item.subtopic) return;
+
+    // If videoOptions exist, cycle through them
+    if (item.videoOptions && item.videoOptions.length > 0) {
+      const currentIndex = item.currentVideoIndex || 0;
+      const nextIndex = (currentIndex + 1) % item.videoOptions.length; // Cycle through array
+      const nextVideo = item.videoOptions[nextIndex];
+
+      const updatedItems = [...items];
+      updatedItems[index] = {
+        ...item,
+        videoUrl: nextVideo.videoUrl,
+        videoTitle: nextVideo.videoTitle,
+        currentVideoIndex: nextIndex,
+      };
+      
+      const updatedData = Array.isArray(data) ? updatedItems : { ...data, plan: updatedItems };
+      setData(updatedData);
+      localStorage.setItem("playlistData", JSON.stringify(updatedData));
+      return;
+    }
+
+    // If no videoOptions, fetch new ones
+    setReloadingVideoIndex(index);
+    try {
+      const query = `${item.subtopic} explained in ${item.timeAllocated} minutes`;
+      const res = await axios.post("http://localhost:5000/api/youtube/search", {
+        query,
+        maxDuration: item.timeAllocated,
+      });
+
+      const videos = res.data.videos || [];
+      if (videos.length === 0) {
+        alert("No videos found for this topic");
+        return;
+      }
+
+      const updatedItems = [...items];
+      const firstVideo = videos[0];
+      updatedItems[index] = {
+        ...item,
+        videoUrl: firstVideo.videoUrl,
+        videoTitle: firstVideo.videoTitle,
+        videoOptions: videos,
+        currentVideoIndex: 0,
+      };
+      
+      const updatedData = Array.isArray(data) ? updatedItems : { ...data, plan: updatedItems };
+      setData(updatedData);
+      localStorage.setItem("playlistData", JSON.stringify(updatedData));
+    } catch (err) {
+      alert(err.response?.data?.error || "Failed to reload video");
+    } finally {
+      setReloadingVideoIndex(null);
+    }
+  };
+
+  // Save time change for a specific topic - triggers new search
+  const handleSaveTimeChange = async (index) => {
+    const newTime = parseFloat(editTimeValue);
+    if (isNaN(newTime) || newTime <= 0) {
+      alert("Please enter a valid time (in minutes)");
+      return;
+    }
+
+    const item = items[index];
+    if (!item || !item.subtopic) return;
+
+    // Update time first
+    const updatedItems = [...items];
+    updatedItems[index] = {
+      ...items[index],
+      timeAllocated: newTime,
+    };
+
+    const updatedData = Array.isArray(data) ? updatedItems : { ...data, plan: updatedItems };
+    setData(updatedData);
+    setEditingTimeIndex(null);
+    setEditTimeValue("");
+
+    // Trigger new search with new time constraint
+    setReloadingVideoIndex(index);
+    try {
+      const query = `${item.subtopic} explained in ${newTime} minutes`;
+      const res = await axios.post("http://localhost:5000/api/youtube/search", {
+        query,
+        maxDuration: newTime,
+      });
+
+      const videos = res.data.videos || [];
+      if (videos.length > 0) {
+        const firstVideo = videos[0];
+        updatedItems[index] = {
+          ...item,
+          timeAllocated: newTime,
+          videoUrl: firstVideo.videoUrl,
+          videoTitle: firstVideo.videoTitle,
+          videoOptions: videos,
+          currentVideoIndex: 0,
+        };
+
+        const finalData = Array.isArray(data) ? updatedItems : { ...data, plan: updatedItems };
+        setData(finalData);
+        localStorage.setItem("playlistData", JSON.stringify(finalData));
+      } else {
+        alert("No videos found for this topic with the new time constraint");
+      }
+    } catch (err) {
+      alert(err.response?.data?.error || "Failed to search for videos with new time");
+    } finally {
+      setReloadingVideoIndex(null);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-black via-zinc-900 to-black text-white p-8">
@@ -140,11 +261,60 @@ export default function Learning() {
                                   Importance: <span className="font-medium text-white">{it.importance}</span>
                                 </p>
                               )}
-                              <p>
-                                Time: <span className="font-medium text-white">{it.timeAllocated || '—'} min</span>
+                              <p className="flex items-center gap-2">
+                                Time: {editingTimeIndex === i ? (
+                                  <div className="flex items-center gap-2">
+                                    <input
+                                      type="number"
+                                      value={editTimeValue}
+                                      onChange={(e) => setEditTimeValue(e.target.value)}
+                                      className="w-20 px-2 py-1 rounded bg-black border border-zinc-700 text-white text-sm"
+                                      placeholder={it.timeAllocated || '0'}
+                                      min="1"
+                                    />
+                                    <button
+                                      onClick={() => handleSaveTimeChange(i)}
+                                      className="px-2 py-1 rounded bg-blue-600 hover:bg-blue-700 text-xs"
+                                    >
+                                      Save
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        setEditingTimeIndex(null);
+                                        setEditTimeValue("");
+                                      }}
+                                      className="px-2 py-1 rounded bg-zinc-700 hover:bg-zinc-600 text-xs"
+                                    >
+                                      Cancel
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <span className="font-medium text-white flex items-center gap-2">
+                                    {it.timeAllocated || '—'} min
+                                    <button
+                                      onClick={() => {
+                                        setEditingTimeIndex(i);
+                                        setEditTimeValue(it.timeAllocated || '');
+                                      }}
+                                      className="text-blue-400 hover:text-blue-300"
+                                      title="Edit time"
+                                    >
+                                      <Edit2 size={14} />
+                                    </button>
+                                  </span>
+                                )}
                               </p>
                             </div>
                           </div>
+                          <button
+                            onClick={() => handleReloadVideo(i)}
+                            disabled={reloadingVideoIndex === i}
+                            className="flex-shrink-0 px-3 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 transition disabled:opacity-50 flex items-center gap-2 text-sm"
+                            title="Reload video for this topic"
+                          >
+                            <RefreshCw size={16} className={reloadingVideoIndex === i ? "animate-spin" : ""} />
+                            {reloadingVideoIndex === i ? "Loading..." : "Reload"}
+                          </button>
                         </div>
                       ) : (
                         <div>

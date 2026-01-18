@@ -5,6 +5,7 @@ import MainPage from '../componenets/mainPage';
 import Learning from '../componenets/learning';
 import Login from '../componenets/Login';
 import Signup from '../componenets/Signup';
+import SavedPlaylists from '../componenets/SavedPlaylists';
 
 function App() {
   return (
@@ -15,6 +16,7 @@ function App() {
         <Route path="/signup" element={<Signup />} />
         <Route path="/main" element={<MainPage />} />
         <Route path="/learn" element={<Learning />}/>
+        <Route path="/saved-playlists" element={<SavedPlaylists />} />
         <Route path="*" element={<Navigate to="/home" replace />} />
         
       </Routes>

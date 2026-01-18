@@ -1,5 +1,8 @@
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
+import OTP from "../models/OTP.js";
+import { sendOTPEmail } from "../utils/emailService.js";
+import otpGenerator from "otp-generator";
 
 // Generate JWT token
 const generateToken = (userId) => {
@@ -11,7 +14,105 @@ const generateToken = (userId) => {
   });
 };
 
-// @desc    Register a new user
+// @desc    Send OTP to email
+// @route   POST /api/auth/send-otp
+// @access  Public
+export const sendOTP = async (req, res, next) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ error: "Email is required" });
+    }
+
+    // Check if user already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ error: "Email already registered" });
+    }
+
+    // Generate 6-digit OTP
+    const otp = otpGenerator.generate(6, {
+      upperCaseAlphabets: false,
+      lowerCaseAlphabets: false,
+      specialChars: false,
+    });
+
+    // Delete any existing OTPs for this email
+    await OTP.deleteMany({ email });
+
+    // Save OTP
+    await OTP.create({
+      email,
+      otp,
+      expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes
+    });
+
+    // Send OTP via email
+    try {
+      await sendOTPEmail(email, otp);
+    } catch (emailError) {
+      console.error("Email sending failed:", emailError.message);
+      // In development, return OTP in response if email fails
+      if (process.env.NODE_ENV !== "production") {
+        return res.json({
+          success: true,
+          message: "OTP generated (dev mode)",
+          otp: otp, // Only in development
+        });
+      }
+      throw new Error("Failed to send OTP email");
+    }
+
+    res.json({
+      success: true,
+      message: "OTP sent to email successfully",
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Verify OTP
+// @route   POST /api/auth/verify-otp
+// @access  Public
+export const verifyOTP = async (req, res, next) => {
+  try {
+    const { email, otp } = req.body;
+
+    if (!email || !otp) {
+      return res.status(400).json({ error: "Email and OTP are required" });
+    }
+
+    // Find OTP
+    const otpRecord = await OTP.findOne({
+      email,
+      otp,
+      expiresAt: { $gt: new Date() }, // Not expired
+    });
+
+    if (!otpRecord) {
+      return res.status(400).json({ error: "Invalid or expired OTP" });
+    }
+
+    if (otpRecord.verified) {
+      return res.status(400).json({ error: "OTP already used" });
+    }
+
+    // Mark OTP as verified
+    otpRecord.verified = true;
+    await otpRecord.save();
+
+    res.json({
+      success: true,
+      message: "OTP verified successfully",
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Register a new user (after OTP verification)
 // @route   POST /api/auth/signup
 // @access  Public
 export const signup = async (req, res, next) => {
@@ -21,6 +122,19 @@ export const signup = async (req, res, next) => {
     // Validation
     if (!name || !email || !password) {
       return res.status(400).json({ error: "Please provide all fields" });
+    }
+
+    // Check if OTP is verified
+    const verifiedOTP = await OTP.findOne({
+      email,
+      verified: true,
+      expiresAt: { $gt: new Date() },
+    });
+
+    if (!verifiedOTP) {
+      return res.status(400).json({
+        error: "Email not verified. Please verify your email first.",
+      });
     }
 
     // Check if user already exists
@@ -36,6 +150,9 @@ export const signup = async (req, res, next) => {
       password,
     });
 
+    // Delete verified OTP after successful signup
+    await OTP.deleteMany({ email });
+
     // Generate token
     const token = generateToken(user._id);
 
@@ -47,7 +164,7 @@ export const signup = async (req, res, next) => {
       maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
     });
 
-    res.status(201).json({
+    res.json({
       success: true,
       user: {
         id: user._id,

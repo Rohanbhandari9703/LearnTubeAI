@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { PlayCircle, Sparkles, Clock, Brain, LogOut } from "lucide-react";
+import { PlayCircle, Sparkles, Clock, Brain, LogOut, Upload, Image as ImageIcon } from "lucide-react";
 import { useNavigate, Link } from "react-router-dom";
 import axios from "axios";
 
@@ -25,6 +25,9 @@ export default function LandingPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [user, setUser] = useState(null);
+  const [inputMode, setInputMode] = useState("text"); // "text" or "image"
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
 
   useEffect(() => {
     // Check if user is logged in
@@ -48,21 +51,67 @@ export default function LandingPage() {
     }
   };
 
+  const handleImageSelect = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.size > 10 * 1024 * 1024) {
+        setError("Image size should be less than 10MB");
+        return;
+      }
+      setSelectedImage(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result);
+      };
+      reader.readAsDataURL(file);
+      setError("");
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
-    if (!subject || !time) {
-      setError("Please enter a subject and available time.");
-      return;
+
+    if (inputMode === "image") {
+      if (!selectedImage) {
+        setError("Please select an image.");
+        return;
+      }
+      if (!time) {
+        setError("Please enter available time.");
+        return;
+      }
+    } else {
+      if (!subject || !time) {
+        setError("Please enter a subject and available time.");
+        return;
+      }
     }
+
     setLoading(true);
     try {
       const totalMinutes = Number(time) * 60 || parseInt(time, 10) || 0;
-      const res = await fetch("http://localhost:5000/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ input: subject, totalMinutes })
-      });
+
+      let res;
+      if (inputMode === "image") {
+        // OCR-based flow
+        const formData = new FormData();
+        formData.append("image", selectedImage);
+        formData.append("totalMinutes", totalMinutes);
+
+        res = await fetch("http://localhost:5000/api/chat/image", {
+          method: "POST",
+          body: formData
+        });
+      } else {
+        // Text-based flow
+        res = await fetch("http://localhost:5000/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ input: subject, totalMinutes })
+        });
+      }
+
       if (!res.ok) throw new Error(`Server error ${res.status}`);
       const data = await res.json();
       localStorage.setItem("playlistData", JSON.stringify(data));
@@ -86,6 +135,12 @@ export default function LandingPage() {
           {user ? (
             <>
               <span className="text-zinc-300">Welcome, {user.name}</span>
+              <Link
+                to="/saved-playlists"
+                className="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 transition"
+              >
+                Saved Playlists
+              </Link>
               <button
                 onClick={handleLogout}
                 className="flex items-center gap-2 px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 transition"
@@ -143,13 +198,74 @@ export default function LandingPage() {
             className="mt-10 flex justify-center"
           >
             <form onSubmit={handleSubmit} className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-6 w-full max-w-xl space-y-4">
-              <input
-                type="text"
-                placeholder="Enter subject (e.g. DBMS, DSA, React)"
-                className="w-full px-4 py-3 rounded-xl bg-black border border-zinc-700 text-white focus:outline-none focus:border-blue-500"
-                value={subject}
-                onChange={(e) => setSubject(e.target.value)}
-              />
+              {/* Input Mode Toggle */}
+              <div className="flex gap-2 mb-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setInputMode("text");
+                    setSelectedImage(null);
+                    setImagePreview(null);
+                    setError("");
+                  }}
+                  className={`flex-1 px-4 py-2 rounded-lg transition ${
+                    inputMode === "text"
+                      ? "bg-blue-600 text-white"
+                      : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"
+                  }`}
+                >
+                  Text Input
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setInputMode("image");
+                    setSubject("");
+                    setError("");
+                  }}
+                  className={`flex-1 px-4 py-2 rounded-lg transition ${
+                    inputMode === "image"
+                      ? "bg-blue-600 text-white"
+                      : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"
+                  }`}
+                >
+                  <Upload size={16} className="inline mr-2" />
+                  Upload Image
+                </button>
+              </div>
+
+              {inputMode === "text" ? (
+                <input
+                  type="text"
+                  placeholder="Enter subject (e.g. DBMS, DSA, React)"
+                  className="w-full px-4 py-3 rounded-xl bg-black border border-zinc-700 text-white focus:outline-none focus:border-blue-500"
+                  value={subject}
+                  onChange={(e) => setSubject(e.target.value)}
+                />
+              ) : (
+                <div className="space-y-2">
+                  <label className="block">
+                    <div className="flex items-center justify-center w-full h-32 border-2 border-dashed border-zinc-700 rounded-xl cursor-pointer hover:border-blue-500 transition bg-black/50">
+                      {imagePreview ? (
+                        <img src={imagePreview} alt="Preview" className="max-h-full max-w-full object-contain rounded" />
+                      ) : (
+                        <div className="text-center">
+                          <ImageIcon className="mx-auto mb-2 text-zinc-400" size={32} />
+                          <p className="text-sm text-zinc-400">Click to upload image</p>
+                          <p className="text-xs text-zinc-500 mt-1">PNG, JPG up to 10MB</p>
+                        </div>
+                      )}
+                    </div>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageSelect}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+              )}
+
               <input
                 type="number"
                 placeholder="Available time (hours)"

@@ -1,9 +1,10 @@
 import React, { useState, useMemo, useEffect } from "react";
 import axios from "axios";
 import { motion } from "framer-motion";
-import { CheckCircle2, Circle } from "lucide-react";
+import { CheckCircle2, Circle, RefreshCw, Edit2, Save } from "lucide-react";
 import YouTubeEmbed from "./YouTubeEmbed";
 import ProgressDashboard from "./ProgressDashboard";
+import { Link } from "react-router-dom";
 
 const MainPage = () => {
   const [subject, setSubject] = useState("");
@@ -13,6 +14,11 @@ const MainPage = () => {
   const [error, setError] = useState("");
   const [formError, setFormError] = useState("");
   const [completedVideos, setCompletedVideos] = useState(new Set());
+  const [user, setUser] = useState(null);
+  const [savingPlaylist, setSavingPlaylist] = useState(false);
+  const [reloadingVideoIndex, setReloadingVideoIndex] = useState(null);
+  const [editingTimeIndex, setEditingTimeIndex] = useState(null);
+  const [editTimeValue, setEditTimeValue] = useState("");
 
   const totalDurationInMinutes = useMemo(() => {
     return plan.reduce((sum, item) => sum + (item.timeAllocated || 0), 0);
@@ -66,6 +72,14 @@ const MainPage = () => {
         setCompletedVideos(new Set(completed));
       }
     } catch {}
+
+    // Check if user is logged in
+    try {
+      const userData = localStorage.getItem("user");
+      if (userData) {
+        setUser(JSON.parse(userData));
+      }
+    } catch {}
   }, []);
 
   // Save completed videos to localStorage whenever it changes
@@ -97,8 +111,154 @@ const MainPage = () => {
     return plan.filter((item) => item.videoUrl && completedVideos.has(item.videoUrl)).length;
   }, [plan, completedVideos]);
 
+  // Save playlist to backend
+  const handleSavePlaylist = async () => {
+    if (!user) return;
+    setSavingPlaylist(true);
+    try {
+      await axios.post(
+        "http://localhost:5000/api/playlists",
+        {
+          topic: subject || "My Learning Plan",
+          playlistData: plan,
+        },
+        { withCredentials: true }
+      );
+      alert("Playlist saved successfully!");
+    } catch (err) {
+      alert(err.response?.data?.error || "Failed to save playlist");
+    } finally {
+      setSavingPlaylist(false);
+    }
+  };
+
+  // Reload video for a specific topic - cycles through video options
+  const handleReloadVideo = async (index) => {
+    const item = plan[index];
+    if (!item || !item.subtopic) return;
+
+    // If videoOptions exist, cycle through them
+    if (item.videoOptions && item.videoOptions.length > 0) {
+      const currentIndex = item.currentVideoIndex || 0;
+      const nextIndex = (currentIndex + 1) % item.videoOptions.length; // Cycle through array
+      const nextVideo = item.videoOptions[nextIndex];
+
+      const updatedPlan = [...plan];
+      updatedPlan[index] = {
+        ...item,
+        videoUrl: nextVideo.videoUrl,
+        videoTitle: nextVideo.videoTitle,
+        currentVideoIndex: nextIndex,
+      };
+      setPlan(updatedPlan);
+      localStorage.setItem("playlistData", JSON.stringify(updatedPlan));
+      return;
+    }
+
+    // If no videoOptions, fetch new ones
+    setReloadingVideoIndex(index);
+    try {
+      const query = `${item.subtopic} explained in ${item.timeAllocated} minutes`;
+      const res = await axios.post("http://localhost:5000/api/youtube/search", {
+        query,
+        maxDuration: item.timeAllocated,
+      });
+
+      const videos = res.data.videos || [];
+      if (videos.length === 0) {
+        alert("No videos found for this topic");
+        return;
+      }
+
+      const updatedPlan = [...plan];
+      const firstVideo = videos[0];
+      updatedPlan[index] = {
+        ...item,
+        videoUrl: firstVideo.videoUrl,
+        videoTitle: firstVideo.videoTitle,
+        videoOptions: videos,
+        currentVideoIndex: 0,
+      };
+      setPlan(updatedPlan);
+      localStorage.setItem("playlistData", JSON.stringify(updatedPlan));
+    } catch (err) {
+      alert(err.response?.data?.error || "Failed to reload video");
+    } finally {
+      setReloadingVideoIndex(null);
+    }
+  };
+
+  // Save time change for a specific topic - triggers new search
+  const handleSaveTimeChange = async (index) => {
+    const newTime = parseFloat(editTimeValue);
+    if (isNaN(newTime) || newTime <= 0) {
+      alert("Please enter a valid time (in minutes)");
+      return;
+    }
+
+    const item = plan[index];
+    if (!item || !item.subtopic) return;
+
+    // Update time first
+    const updatedPlan = [...plan];
+    updatedPlan[index] = {
+      ...plan[index],
+      timeAllocated: newTime,
+    };
+    setPlan(updatedPlan);
+    setEditingTimeIndex(null);
+    setEditTimeValue("");
+
+    // Trigger new search with new time constraint
+    setReloadingVideoIndex(index);
+    try {
+      const query = `${item.subtopic} explained in ${newTime} minutes`;
+      const res = await axios.post("http://localhost:5000/api/youtube/search", {
+        query,
+        maxDuration: newTime,
+      });
+
+      const videos = res.data.videos || [];
+      if (videos.length > 0) {
+        const firstVideo = videos[0];
+        updatedPlan[index] = {
+          ...item,
+          timeAllocated: newTime,
+          videoUrl: firstVideo.videoUrl,
+          videoTitle: firstVideo.videoTitle,
+          videoOptions: videos,
+          currentVideoIndex: 0,
+        };
+        setPlan(updatedPlan);
+        localStorage.setItem("playlistData", JSON.stringify(updatedPlan));
+      } else {
+        alert("No videos found for this topic with the new time constraint");
+      }
+    } catch (err) {
+      alert(err.response?.data?.error || "Failed to search for videos with new time");
+    } finally {
+      setReloadingVideoIndex(null);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-black via-zinc-900 to-black text-white px-6 py-20">
+      {/* Navigation Bar */}
+      <nav className="max-w-6xl mx-auto mb-8 flex justify-between items-center">
+        <div className="text-2xl font-bold">
+          <span className="text-blue-500">LearnTube</span> AI
+        </div>
+        <div className="flex items-center gap-4">
+          {user && (
+            <Link
+              to="/saved-playlists"
+              className="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 transition"
+            >
+              Saved Playlists
+            </Link>
+          )}
+        </div>
+      </nav>
       
       {/* Header */}
       <motion.div
@@ -150,9 +310,21 @@ const MainPage = () => {
       {/* Plan Section */}
       {plan.length > 0 && (
         <div className="max-w-5xl mx-auto mt-20">
-          <h2 className="text-2xl font-bold mb-8 text-center">
-            📘 AI-Generated Study Plan
-          </h2>
+          <div className="flex justify-between items-center mb-8">
+            <h2 className="text-2xl font-bold">
+              📘 AI-Generated Study Plan
+            </h2>
+            {user && (
+              <button
+                onClick={handleSavePlaylist}
+                disabled={savingPlaylist}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 transition disabled:opacity-50"
+              >
+                <Save size={18} />
+                {savingPlaylist ? "Saving..." : "Save Playlist"}
+              </button>
+            )}
+          </div>
 
           {/* Progress Dashboard */}
           {totalVideos > 0 && (
@@ -205,11 +377,60 @@ const MainPage = () => {
                             <p>
                               Importance: <span className="font-medium text-white">{item.importance}</span>
                             </p>
-                            <p>
-                              Time: <span className="font-medium text-white">{item.timeAllocated} min</span>
+                            <p className="flex items-center gap-2">
+                              Time: {editingTimeIndex === idx ? (
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="number"
+                                    value={editTimeValue}
+                                    onChange={(e) => setEditTimeValue(e.target.value)}
+                                    className="w-20 px-2 py-1 rounded bg-black border border-zinc-700 text-white text-sm"
+                                    placeholder={item.timeAllocated}
+                                    min="1"
+                                  />
+                                  <button
+                                    onClick={() => handleSaveTimeChange(idx)}
+                                    className="px-2 py-1 rounded bg-blue-600 hover:bg-blue-700 text-xs"
+                                  >
+                                    Save
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setEditingTimeIndex(null);
+                                      setEditTimeValue("");
+                                    }}
+                                    className="px-2 py-1 rounded bg-zinc-700 hover:bg-zinc-600 text-xs"
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                              ) : (
+                                <span className="font-medium text-white flex items-center gap-2">
+                                  {item.timeAllocated} min
+                                  <button
+                                    onClick={() => {
+                                      setEditingTimeIndex(idx);
+                                      setEditTimeValue(item.timeAllocated);
+                                    }}
+                                    className="text-blue-400 hover:text-blue-300"
+                                    title="Edit time"
+                                  >
+                                    <Edit2 size={14} />
+                                  </button>
+                                </span>
+                              )}
                             </p>
                           </div>
                         </div>
+                        <button
+                          onClick={() => handleReloadVideo(idx)}
+                          disabled={reloadingVideoIndex === idx}
+                          className="flex-shrink-0 px-3 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 transition disabled:opacity-50 flex items-center gap-2 text-sm"
+                          title="Reload video for this topic"
+                        >
+                          <RefreshCw size={16} className={reloadingVideoIndex === idx ? "animate-spin" : ""} />
+                          {reloadingVideoIndex === idx ? "Loading..." : "Reload"}
+                        </button>
                       </div>
                       {/* Embedded Video */}
                       <YouTubeEmbed 

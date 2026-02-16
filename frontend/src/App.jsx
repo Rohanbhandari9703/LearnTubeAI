@@ -6,21 +6,24 @@ import Learning from '../componenets/learning';
 import Login from '../componenets/Login';
 import Signup from '../componenets/Signup';
 import SavedPlaylists from '../componenets/SavedPlaylists';
+import { ThemeProvider } from './context/ThemeContext';
 
 function App() {
   return (
-    <Router>
-      <Routes>
-        <Route path="/home" element={<LandingPage />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/signup" element={<Signup />} />
-        <Route path="/main" element={<MainPage />} />
-        <Route path="/learn" element={<Learning />}/>
-        <Route path="/saved-playlists" element={<SavedPlaylists />} />
-        <Route path="*" element={<Navigate to="/home" replace />} />
-        
-      </Routes>
-    </Router>
+    <ThemeProvider>
+      <Router>
+        <Routes>
+          <Route path="/home" element={<LandingPage />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/signup" element={<Signup />} />
+          <Route path="/main" element={<MainPage />} />
+          <Route path="/learn" element={<Learning />} />
+          <Route path="/saved-playlists" element={<SavedPlaylists />} />
+          <Route path="*" element={<Navigate to="/home" replace />} />
+
+        </Routes>
+      </Router>
+    </ThemeProvider>
   );
 }
 

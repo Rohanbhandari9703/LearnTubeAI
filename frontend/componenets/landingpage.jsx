@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { PlayCircle, Sparkles, Clock, Brain, LogOut, Upload, Image as ImageIcon } from "lucide-react";
 import { useNavigate, Link } from "react-router-dom";
+import ThemeToggle from "./ThemeToggle";
 import axios from "axios";
 
 // Simple reusable button (no Next.js / shadcn dependency)
@@ -15,7 +16,7 @@ function Button({ children }) {
 
 // Simple card component
 function Card({ children }) {
-  return <div className="bg-zinc-900 border border-zinc-800 rounded-xl">{children}</div>;
+  return <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm dark:shadow-none">{children}</div>;
 }
 
 export default function LandingPage() {
@@ -125,25 +126,26 @@ export default function LandingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-black via-zinc-900 to-black text-white">
+    <div className="min-h-screen bg-gray-50 dark:bg-black text-zinc-900 dark:text-white transition-colors duration-300">
       {/* Navigation Bar */}
       <nav className="relative z-10 max-w-6xl mx-auto px-6 py-6 flex justify-between items-center">
-        <div className="text-2xl font-bold">
+        <Link to="/home" className="text-2xl font-bold hover:opacity-80 transition">
           <span className="text-blue-500">LearnTube</span> AI
-        </div>
+        </Link>
         <div className="flex items-center gap-4">
+          <ThemeToggle />
           {user ? (
             <>
               <span className="text-zinc-300">Welcome, {user.name}</span>
               <Link
                 to="/saved-playlists"
-                className="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 transition"
+                className="px-4 py-2 rounded-xl bg-gray-100 dark:bg-zinc-800 hover:bg-gray-200 dark:hover:bg-zinc-700 border border-gray-200 dark:border-zinc-700 transition"
               >
                 Saved Playlists
               </Link>
               <button
                 onClick={handleLogout}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 transition"
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-100 dark:bg-zinc-800 hover:bg-gray-200 dark:hover:bg-zinc-700 border border-gray-200 dark:border-zinc-700 transition"
               >
                 <LogOut size={18} />
                 Logout
@@ -153,7 +155,7 @@ export default function LandingPage() {
             <>
               <Link
                 to="/login"
-                className="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 transition"
+                className="px-4 py-2 rounded-xl bg-gray-100 dark:bg-zinc-800 hover:bg-gray-200 dark:hover:bg-zinc-700 border border-gray-200 dark:border-zinc-700 transition"
               >
                 Sign In
               </Link>
@@ -170,7 +172,7 @@ export default function LandingPage() {
 
       {/* Hero Section */}
       <section className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_#3b82f6,_transparent_40%)] opacity-30" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_#3b82f6,_transparent_40%)] opacity-20 dark:opacity-30" />
         <div className="relative max-w-6xl mx-auto px-6 py-28 text-center">
           <motion.h1
             initial={{ opacity: 0, y: 20 }}
@@ -185,7 +187,7 @@ export default function LandingPage() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2, duration: 0.6 }}
-            className="mt-6 text-lg md:text-xl text-zinc-300 max-w-3xl mx-auto"
+            className="mt-6 text-lg md:text-xl text-zinc-600 dark:text-zinc-300 max-w-3xl mx-auto"
           >
             Enter a subject and your available time. Our AI curates the most relevant YouTube videos
             into a perfectly timed learning playlist — no distractions, no clickbait.
@@ -197,7 +199,7 @@ export default function LandingPage() {
             transition={{ delay: 0.4, duration: 0.6 }}
             className="mt-10 flex justify-center"
           >
-            <form onSubmit={handleSubmit} className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-6 w-full max-w-xl space-y-4">
+            <form onSubmit={handleSubmit} className="bg-white/80 dark:bg-zinc-900/80 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-6 w-full max-w-xl space-y-4 shadow-xl dark:shadow-none backdrop-blur-sm">
               {/* Input Mode Toggle */}
               <div className="flex gap-2 mb-4">
                 <button
@@ -208,11 +210,10 @@ export default function LandingPage() {
                     setImagePreview(null);
                     setError("");
                   }}
-                  className={`flex-1 px-4 py-2 rounded-lg transition ${
-                    inputMode === "text"
-                      ? "bg-blue-600 text-white"
-                      : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"
-                  }`}
+                  className={`flex-1 px-4 py-2 rounded-lg transition ${inputMode === "text"
+                    ? "bg-blue-600 text-white"
+                    : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"
+                    }`}
                 >
                   Text Input
                 </button>
@@ -223,11 +224,10 @@ export default function LandingPage() {
                     setSubject("");
                     setError("");
                   }}
-                  className={`flex-1 px-4 py-2 rounded-lg transition ${
-                    inputMode === "image"
-                      ? "bg-blue-600 text-white"
-                      : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"
-                  }`}
+                  className={`flex-1 px-4 py-2 rounded-lg transition ${inputMode === "image"
+                    ? "bg-blue-600 text-white"
+                    : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"
+                    }`}
                 >
                   <Upload size={16} className="inline mr-2" />
                   Upload Image
@@ -238,14 +238,14 @@ export default function LandingPage() {
                 <input
                   type="text"
                   placeholder="Enter subject (e.g. DBMS, DSA, React)"
-                  className="w-full px-4 py-3 rounded-xl bg-black border border-zinc-700 text-white focus:outline-none focus:border-blue-500"
+                  className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-black border border-gray-300 dark:border-zinc-700 text-zinc-900 dark:text-white focus:outline-none focus:border-blue-500"
                   value={subject}
                   onChange={(e) => setSubject(e.target.value)}
                 />
               ) : (
                 <div className="space-y-2">
                   <label className="block">
-                    <div className="flex items-center justify-center w-full h-32 border-2 border-dashed border-zinc-700 rounded-xl cursor-pointer hover:border-blue-500 transition bg-black/50">
+                    <div className="flex items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 dark:border-zinc-700 rounded-xl cursor-pointer hover:border-blue-500 transition bg-gray-50/50 dark:bg-black/50">
                       {imagePreview ? (
                         <img src={imagePreview} alt="Preview" className="max-h-full max-w-full object-contain rounded" />
                       ) : (
@@ -269,7 +269,7 @@ export default function LandingPage() {
               <input
                 type="number"
                 placeholder="Available time (hours)"
-                className="w-full px-4 py-3 rounded-xl bg-black border border-zinc-700 text-white focus:outline-none focus:border-blue-500"
+                className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-black border border-gray-300 dark:border-zinc-700 text-zinc-900 dark:text-white focus:outline-none focus:border-blue-500"
                 value={time}
                 onChange={(e) => setTime(e.target.value)}
                 min={1}
@@ -301,7 +301,7 @@ export default function LandingPage() {
       </section>
 
       {/* How it Works */}
-      <section className="bg-zinc-900/60 py-20">
+      <section className="bg-gray-100/60 dark:bg-zinc-900/60 py-20">
         <div className="max-w-5xl mx-auto px-6">
           <h2 className="text-3xl md:text-4xl font-bold text-center mb-12">How It Works</h2>
           <div className="grid md:grid-cols-3 gap-10 text-center">
@@ -315,7 +315,7 @@ export default function LandingPage() {
       {/* CTA Section */}
       <section className="py-24 text-center">
         <h2 className="text-3xl md:text-4xl font-bold">Start Learning the Smart Way</h2>
-        <p className="mt-4 text-zinc-300">Let AI plan your learning. You just focus on studying.</p>
+        <p className="mt-4 text-zinc-600 dark:text-zinc-300">Let AI plan your learning. You just focus on studying.</p>
         <div className="mt-8">
           <Button>Get Started</Button>
         </div>
@@ -330,7 +330,7 @@ function FeatureCard({ icon, title, desc }) {
       <div className="p-6 text-center">
         <div className="flex justify-center mb-4 text-blue-500">{icon}</div>
         <h3 className="text-xl font-semibold mb-2">{title}</h3>
-        <p className="text-zinc-400 text-sm">{desc}</p>
+        <p className="text-zinc-600 dark:text-zinc-400 text-sm">{desc}</p>
       </div>
     </Card>
   );
@@ -343,7 +343,7 @@ function Step({ number, title, desc }) {
         {number}
       </div>
       <h3 className="text-xl font-semibold mb-2">{title}</h3>
-      <p className="text-zinc-400">{desc}</p>
+      <p className="text-zinc-600 dark:text-zinc-400">{desc}</p>
     </div>
   );
 }

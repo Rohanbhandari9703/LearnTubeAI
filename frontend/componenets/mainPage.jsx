@@ -5,6 +5,7 @@ import { CheckCircle2, Circle, RefreshCw, Edit2, Save } from "lucide-react";
 import YouTubeEmbed from "./YouTubeEmbed";
 import ProgressDashboard from "./ProgressDashboard";
 import { Link } from "react-router-dom";
+import ThemeToggle from "./ThemeToggle";
 
 const MainPage = () => {
   const [subject, setSubject] = useState("");
@@ -21,7 +22,7 @@ const MainPage = () => {
   const [editTimeValue, setEditTimeValue] = useState("");
 
   const totalDurationInMinutes = useMemo(() => {
-    return plan.reduce((sum, item) => sum + (item.timeAllocated || 0), 0);
+    return plan.reduce((sum, item) => sum + (item.duration || 0), 0);
   }, [plan]);
 
   const totalHours = Math.floor(totalDurationInMinutes / 60);
@@ -62,7 +63,7 @@ const MainPage = () => {
         if (Array.isArray(parsed)) setPlan(parsed);
         else if (parsed.plan) setPlan(parsed.plan);
       }
-    } catch {}
+    } catch { }
 
     // Load completed videos
     try {
@@ -71,7 +72,7 @@ const MainPage = () => {
         const completed = JSON.parse(saved);
         setCompletedVideos(new Set(completed));
       }
-    } catch {}
+    } catch { }
 
     // Check if user is logged in
     try {
@@ -79,7 +80,7 @@ const MainPage = () => {
       if (userData) {
         setUser(JSON.parse(userData));
       }
-    } catch {}
+    } catch { }
   }, []);
 
   // Save completed videos to localStorage whenever it changes
@@ -148,6 +149,7 @@ const MainPage = () => {
         ...item,
         videoUrl: nextVideo.videoUrl,
         videoTitle: nextVideo.videoTitle,
+        duration: nextVideo.duration,
         currentVideoIndex: nextIndex,
       };
       setPlan(updatedPlan);
@@ -176,6 +178,7 @@ const MainPage = () => {
         ...item,
         videoUrl: firstVideo.videoUrl,
         videoTitle: firstVideo.videoTitle,
+        duration: firstVideo.duration,
         videoOptions: videos,
         currentVideoIndex: 0,
       };
@@ -226,6 +229,7 @@ const MainPage = () => {
           timeAllocated: newTime,
           videoUrl: firstVideo.videoUrl,
           videoTitle: firstVideo.videoTitle,
+          duration: firstVideo.duration,
           videoOptions: videos,
           currentVideoIndex: 0,
         };
@@ -242,24 +246,25 @@ const MainPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-black via-zinc-900 to-black text-white px-6 py-20">
+    <div className="min-h-screen bg-gray-50 dark:bg-black text-zinc-900 dark:text-white px-6 py-20 transition-colors duration-300">
       {/* Navigation Bar */}
       <nav className="max-w-6xl mx-auto mb-8 flex justify-between items-center">
-        <div className="text-2xl font-bold">
+        <Link to="/home" className="text-2xl font-bold hover:opacity-80 transition">
           <span className="text-blue-500">LearnTube</span> AI
-        </div>
+        </Link>
         <div className="flex items-center gap-4">
+          <ThemeToggle />
           {user && (
             <Link
               to="/saved-playlists"
-              className="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 transition"
+              className="px-4 py-2 rounded-xl bg-white dark:bg-zinc-800 hover:bg-gray-100 dark:hover:bg-zinc-700 border border-gray-200 dark:border-zinc-700 transition shadow-sm dark:shadow-none"
             >
               Saved Playlists
             </Link>
           )}
         </div>
       </nav>
-      
+
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -269,26 +274,26 @@ const MainPage = () => {
         <h1 className="text-4xl md:text-5xl font-extrabold">
           Your <span className="text-blue-500">Learning Plan</span>
         </h1>
-        <p className="mt-4 text-zinc-400 max-w-2xl mx-auto">
+        <p className="mt-4 text-zinc-600 dark:text-zinc-400 max-w-2xl mx-auto">
           Enter what you want to learn and how much time you have.
           LearnTube AI will do the planning for you.
         </p>
       </motion.div>
 
       {/* Input Card */}
-      <div className="max-w-3xl mx-auto bg-zinc-900/80 border border-zinc-800 rounded-2xl p-8 shadow-xl">
+      <div className="max-w-3xl mx-auto bg-white dark:bg-zinc-900/80 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-8 shadow-xl backdrop-blur-sm">
         <div className="grid md:grid-cols-2 gap-4">
           <input
             type="text"
             placeholder="Topic (DBMS, DSA, React...)"
-            className="px-4 py-3 rounded-xl bg-black border border-zinc-700 focus:border-blue-500 outline-none"
+            className="px-4 py-3 rounded-xl bg-gray-50 dark:bg-black border border-gray-300 dark:border-zinc-700 focus:border-blue-500 outline-none text-zinc-900 dark:text-white"
             value={subject}
             onChange={(e) => setSubject(e.target.value)}
           />
           <input
             type="number"
             placeholder="Time (hours)"
-            className="px-4 py-3 rounded-xl bg-black border border-zinc-700 focus:border-blue-500 outline-none"
+            className="px-4 py-3 rounded-xl bg-gray-50 dark:bg-black border border-gray-300 dark:border-zinc-700 focus:border-blue-500 outline-none text-zinc-900 dark:text-white"
             min={1}
             value={time}
             onChange={(e) => setTime(e.target.value)}
@@ -329,7 +334,7 @@ const MainPage = () => {
           {/* Progress Dashboard */}
           {totalVideos > 0 && (
             <div className="mb-8">
-              <ProgressDashboard 
+              <ProgressDashboard
                 totalVideos={totalVideos}
                 completedVideos={completedCount}
               />
@@ -339,16 +344,15 @@ const MainPage = () => {
           <div className="space-y-6">
             {plan.map((item, idx) => {
               const isCompleted = item.videoUrl && completedVideos.has(item.videoUrl);
-              
+
               return (
                 <motion.div
                   key={idx}
                   whileHover={{ scale: 1.01 }}
-                  className={`bg-zinc-900 border rounded-xl p-6 shadow transition-colors ${
-                    isCompleted 
-                      ? 'border-green-700/50 bg-green-900/10' 
-                      : 'border-zinc-800'
-                  }`}
+                  className={`bg-white dark:bg-zinc-900 border rounded-xl p-6 shadow-sm dark:shadow transition-colors ${isCompleted
+                    ? 'border-green-500/50 bg-green-50 dark:bg-green-900/10'
+                    : 'border-zinc-200 dark:border-zinc-800'
+                    }`}
                 >
                   {item.videoUrl ? (
                     <div className="space-y-4">
@@ -361,21 +365,20 @@ const MainPage = () => {
                           {isCompleted ? (
                             <CheckCircle2 className="w-6 h-6 text-green-500" fill="currentColor" />
                           ) : (
-                            <Circle className="w-6 h-6 text-zinc-500 hover:text-blue-500" />
+                            <Circle className="w-6 h-6 text-zinc-400 dark:text-zinc-500 hover:text-blue-500" />
                           )}
                         </button>
                         <div className="flex-1">
-                          <h3 className={`text-lg font-semibold mb-3 ${
-                            isCompleted ? 'text-green-400 line-through' : 'text-blue-400'
-                          }`}>
+                          <h3 className={`text-lg font-semibold mb-3 ${isCompleted ? 'text-green-600 dark:text-green-400 line-through' : 'text-blue-600 dark:text-blue-400'
+                            }`}>
                             {item.videoTitle}
                           </h3>
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm text-zinc-400 mb-4">
                             <p>
-                              Topic: <span className="font-medium text-white">{item.subtopic}</span>
+                              Topic: <span className="font-medium text-zinc-700 dark:text-white">{item.subtopic}</span>
                             </p>
                             <p>
-                              Importance: <span className="font-medium text-white">{item.importance}</span>
+                              Importance: <span className="font-medium text-zinc-700 dark:text-white">{item.importance}</span>
                             </p>
                             <p className="flex items-center gap-2">
                               Time: {editingTimeIndex === idx ? (
@@ -384,7 +387,7 @@ const MainPage = () => {
                                     type="number"
                                     value={editTimeValue}
                                     onChange={(e) => setEditTimeValue(e.target.value)}
-                                    className="w-20 px-2 py-1 rounded bg-black border border-zinc-700 text-white text-sm"
+                                    className="w-20 px-2 py-1 rounded bg-gray-50 dark:bg-black border border-gray-300 dark:border-zinc-700 text-zinc-900 dark:text-white text-sm"
                                     placeholder={item.timeAllocated}
                                     min="1"
                                   />
@@ -405,7 +408,7 @@ const MainPage = () => {
                                   </button>
                                 </div>
                               ) : (
-                                <span className="font-medium text-white flex items-center gap-2">
+                                <span className="font-medium text-zinc-700 dark:text-white flex items-center gap-2">
                                   {item.timeAllocated} min
                                   <button
                                     onClick={() => {
@@ -425,7 +428,7 @@ const MainPage = () => {
                         <button
                           onClick={() => handleReloadVideo(idx)}
                           disabled={reloadingVideoIndex === idx}
-                          className="flex-shrink-0 px-3 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 transition disabled:opacity-50 flex items-center gap-2 text-sm"
+                          className="flex-shrink-0 px-3 py-2 rounded-lg bg-white dark:bg-zinc-800 hover:bg-gray-100 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-zinc-700 transition disabled:opacity-50 flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300"
                           title="Reload video for this topic"
                         >
                           <RefreshCw size={16} className={reloadingVideoIndex === idx ? "animate-spin" : ""} />
@@ -433,21 +436,21 @@ const MainPage = () => {
                         </button>
                       </div>
                       {/* Embedded Video */}
-                      <YouTubeEmbed 
-                        videoUrl={item.videoUrl} 
+                      <YouTubeEmbed
+                        videoUrl={item.videoUrl}
                         videoTitle={item.videoTitle}
                         className="w-full"
                       />
                     </div>
                   ) : (
                     <div>
-                      <h3 className="text-lg font-semibold text-blue-400">
+                      <h3 className="text-lg font-semibold text-blue-600 dark:text-blue-400">
                         {item.subtopic}
                       </h3>
                       <p className="text-sm text-zinc-400 mt-1">
                         Importance: <span className="font-medium">{item.importance}</span>
                       </p>
-                      <p className="text-sm text-zinc-400">
+                      <p className="text-sm text-zinc-500 dark:text-zinc-400">
                         Time: <span className="font-medium">{item.timeAllocated} min</span>
                       </p>
                       <p className="mt-3 text-zinc-500">No video found</p>
@@ -459,7 +462,7 @@ const MainPage = () => {
           </div>
 
           {/* Summary */}
-          <div className="mt-10 bg-zinc-900 border border-zinc-800 rounded-xl p-6 flex justify-between flex-wrap gap-4">
+          <div className="mt-10 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-6 flex justify-between flex-wrap gap-4 shadow-sm dark:shadow-none">
             <span className="text-blue-400 font-semibold">
               ⏱ Total Time: {totalHours}h {remainingMinutes}m
             </span>

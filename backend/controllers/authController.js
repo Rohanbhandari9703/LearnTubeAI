@@ -124,19 +124,6 @@ export const signup = async (req, res, next) => {
       return res.status(400).json({ error: "Please provide all fields" });
     }
 
-    // Check if OTP is verified
-    const verifiedOTP = await OTP.findOne({
-      email,
-      verified: true,
-      expiresAt: { $gt: new Date() },
-    });
-
-    if (!verifiedOTP) {
-      return res.status(400).json({
-        error: "Email not verified. Please verify your email first.",
-      });
-    }
-
     // Check if user already exists
     const existingUser = await User.findOne({ email });
     if (existingUser) {
@@ -149,9 +136,6 @@ export const signup = async (req, res, next) => {
       email,
       password,
     });
-
-    // Delete verified OTP after successful signup
-    await OTP.deleteMany({ email });
 
     // Generate token
     const token = generateToken(user._id);

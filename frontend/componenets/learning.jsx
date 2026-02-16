@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { CheckCircle2, Circle, RefreshCw, Edit2 } from 'lucide-react';
 import YouTubeEmbed from './YouTubeEmbed';
 import ProgressDashboard from './ProgressDashboard';
+import ThemeToggle from "./ThemeToggle";
 import axios from 'axios';
 
 export default function Learning() {
@@ -27,7 +28,7 @@ export default function Learning() {
         const completed = JSON.parse(saved);
         setCompletedVideos(new Set(completed));
       }
-    } catch {}
+    } catch { }
   }, []);
 
   // Save completed videos to localStorage whenever it changes
@@ -51,7 +52,7 @@ export default function Learning() {
   };
 
   if (!data) return (
-    <div className="min-h-screen bg-gradient-to-br from-black via-zinc-900 to-black text-white p-8 flex items-center justify-center">
+    <div className="min-h-screen bg-gray-50 dark:bg-black text-zinc-900 dark:text-white p-8 flex items-center justify-center transition-colors duration-300">
       <div className="text-center">
         <p className="text-xl text-zinc-400">No learning data found.</p>
         <p className="text-zinc-500 mt-2">Generate a playlist first.</p>
@@ -86,9 +87,10 @@ export default function Learning() {
         ...item,
         videoUrl: nextVideo.videoUrl,
         videoTitle: nextVideo.videoTitle,
+        duration: nextVideo.duration,
         currentVideoIndex: nextIndex,
       };
-      
+
       const updatedData = Array.isArray(data) ? updatedItems : { ...data, plan: updatedItems };
       setData(updatedData);
       localStorage.setItem("playlistData", JSON.stringify(updatedData));
@@ -116,10 +118,11 @@ export default function Learning() {
         ...item,
         videoUrl: firstVideo.videoUrl,
         videoTitle: firstVideo.videoTitle,
+        duration: firstVideo.duration,
         videoOptions: videos,
         currentVideoIndex: 0,
       };
-      
+
       const updatedData = Array.isArray(data) ? updatedItems : { ...data, plan: updatedItems };
       setData(updatedData);
       localStorage.setItem("playlistData", JSON.stringify(updatedData));
@@ -170,6 +173,7 @@ export default function Learning() {
           timeAllocated: newTime,
           videoUrl: firstVideo.videoUrl,
           videoTitle: firstVideo.videoTitle,
+          duration: firstVideo.duration,
           videoOptions: videos,
           currentVideoIndex: 0,
         };
@@ -188,16 +192,19 @@ export default function Learning() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-black via-zinc-900 to-black text-white p-8">
+    <div className="min-h-screen bg-gray-50 dark:bg-black text-zinc-900 dark:text-white p-8 transition-colors duration-300">
       <div className="max-w-5xl mx-auto">
-        <motion.h1 
+        <motion.h1
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className="text-3xl md:text-4xl font-extrabold mb-8 text-center"
         >
           Your <span className="text-blue-500">Learning Session</span>
         </motion.h1>
-        
+        <div className="flex justify-end mb-4 px-4">
+          <ThemeToggle />
+        </div>
+
         {items.length === 0 ? (
           <div className="text-center text-zinc-400 py-12">
             No items in the playlist.
@@ -207,7 +214,7 @@ export default function Learning() {
             {/* Progress Dashboard */}
             {totalVideos > 0 && (
               <div className="mb-8">
-                <ProgressDashboard 
+                <ProgressDashboard
                   totalVideos={totalVideos}
                   completedVideos={completedCount}
                 />
@@ -217,18 +224,17 @@ export default function Learning() {
             <div className="space-y-6">
               {items.map((it, i) => {
                 const isCompleted = it.videoUrl && completedVideos.has(it.videoUrl);
-                
+
                 return (
                   <motion.div
                     key={i}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: i * 0.1 }}
-                    className={`bg-zinc-900 border rounded-xl p-6 shadow-lg transition-colors ${
-                      isCompleted 
-                        ? 'border-green-700/50 bg-green-900/10' 
-                        : 'border-zinc-800'
-                    }`}
+                    className={`bg-white dark:bg-zinc-900 border rounded-xl p-6 shadow-lg transition-colors ${isCompleted
+                      ? 'border-green-500/50 bg-green-50 dark:bg-green-900/10'
+                      : 'border-zinc-200 dark:border-zinc-800'
+                      }`}
                   >
                     <div className="space-y-4">
                       {/* Video Info with Checkbox */}
@@ -241,24 +247,23 @@ export default function Learning() {
                             {isCompleted ? (
                               <CheckCircle2 className="w-6 h-6 text-green-500" fill="currentColor" />
                             ) : (
-                              <Circle className="w-6 h-6 text-zinc-500 hover:text-blue-500" />
+                              <Circle className="w-6 h-6 text-zinc-400 dark:text-zinc-500 hover:text-blue-500" />
                             )}
                           </button>
                           <div className="flex-1">
-                            <h2 className={`text-xl font-semibold mb-3 ${
-                              isCompleted ? 'text-green-400 line-through' : 'text-blue-400'
-                            }`}>
+                            <h2 className={`text-xl font-semibold mb-3 ${isCompleted ? 'text-green-600 dark:text-green-400 line-through' : 'text-blue-600 dark:text-blue-400'
+                              }`}>
                               {it.videoTitle || it.subtopic || it.title || `Lesson ${i + 1}`}
                             </h2>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-zinc-400 mb-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-zinc-500 dark:text-zinc-400 mb-4">
                               {it.subtopic && (
                                 <p>
-                                  Topic: <span className="font-medium text-white">{it.subtopic}</span>
+                                  Topic: <span className="font-medium text-zinc-700 dark:text-white">{it.subtopic}</span>
                                 </p>
                               )}
                               {it.importance && (
                                 <p>
-                                  Importance: <span className="font-medium text-white">{it.importance}</span>
+                                  Importance: <span className="font-medium text-zinc-700 dark:text-white">{it.importance}</span>
                                 </p>
                               )}
                               <p className="flex items-center gap-2">
@@ -268,7 +273,7 @@ export default function Learning() {
                                       type="number"
                                       value={editTimeValue}
                                       onChange={(e) => setEditTimeValue(e.target.value)}
-                                      className="w-20 px-2 py-1 rounded bg-black border border-zinc-700 text-white text-sm"
+                                      className="w-20 px-2 py-1 rounded bg-gray-50 dark:bg-black border border-gray-300 dark:border-zinc-700 text-zinc-900 dark:text-white text-sm"
                                       placeholder={it.timeAllocated || '0'}
                                       min="1"
                                     />
@@ -289,7 +294,7 @@ export default function Learning() {
                                     </button>
                                   </div>
                                 ) : (
-                                  <span className="font-medium text-white flex items-center gap-2">
+                                  <span className="font-medium text-zinc-700 dark:text-white flex items-center gap-2">
                                     {it.timeAllocated || '—'} min
                                     <button
                                       onClick={() => {
@@ -309,7 +314,7 @@ export default function Learning() {
                           <button
                             onClick={() => handleReloadVideo(i)}
                             disabled={reloadingVideoIndex === i}
-                            className="flex-shrink-0 px-3 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 transition disabled:opacity-50 flex items-center gap-2 text-sm"
+                            className="flex-shrink-0 px-3 py-2 rounded-lg bg-white dark:bg-zinc-800 hover:bg-gray-100 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-zinc-700 transition disabled:opacity-50 flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300"
                             title="Reload video for this topic"
                           >
                             <RefreshCw size={16} className={reloadingVideoIndex === i ? "animate-spin" : ""} />
@@ -318,31 +323,31 @@ export default function Learning() {
                         </div>
                       ) : (
                         <div>
-                          <h2 className="text-xl font-semibold text-blue-400 mb-3">
+                          <h2 className="text-xl font-semibold text-blue-600 dark:text-blue-400 mb-3">
                             {it.subtopic || it.title || `Lesson ${i + 1}`}
                           </h2>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-zinc-400 mb-4">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-zinc-500 dark:text-zinc-400 mb-4">
                             {it.importance && (
                               <p>
-                                Importance: <span className="font-medium text-white">{it.importance}</span>
+                                Importance: <span className="font-medium text-zinc-700 dark:text-white">{it.importance}</span>
                               </p>
                             )}
                             <p>
-                              Time: <span className="font-medium text-white">{it.timeAllocated || '—'} min</span>
+                              Time: <span className="font-medium text-zinc-700 dark:text-white">{it.timeAllocated || '—'} min</span>
                             </p>
                           </div>
                         </div>
                       )}
-                      
+
                       {/* Embedded Video */}
                       {it.videoUrl ? (
-                        <YouTubeEmbed 
-                          videoUrl={it.videoUrl} 
+                        <YouTubeEmbed
+                          videoUrl={it.videoUrl}
                           videoTitle={it.videoTitle || it.subtopic}
                           className="w-full"
                         />
                       ) : (
-                        <div className="text-zinc-500 text-center py-8 border border-zinc-800 rounded-lg">
+                        <div className="text-zinc-500 text-center py-8 border border-zinc-200 dark:border-zinc-800 rounded-lg">
                           No video available for this lesson
                         </div>
                       )}

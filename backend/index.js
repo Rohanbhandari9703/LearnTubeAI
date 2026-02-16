@@ -76,9 +76,9 @@ const generateCacheKey = (topic, totalMinutes) => {
 app.post('/api/chat', async (req, res) => {
   const { input, totalMinutes } = req.body;
   console.log('📍 /api/chat called with:', { input, totalMinutes });
-  
+
   const cacheKey = generateCacheKey(input, totalMinutes);
-  
+
   try {
     // Check cache first
     const cached = await PlaylistCache.findOne({ cacheKey });
@@ -87,13 +87,13 @@ app.post('/api/chat', async (req, res) => {
       cached.hitCount += 1;
       cached.lastAccessed = new Date();
       await cached.save();
-      
+
       console.log('✅ Cache hit! Returning cached playlist');
       return res.json(cached.playlistData);
     }
-    
+
     console.log('❌ Cache miss. Generating new playlist...');
-    
+
     // 1. Get subtopics from Gemini
     console.log('🔄 Calling Gemini API...');
     const geminiRes = await axios.post(
@@ -127,6 +127,7 @@ app.post('/api/chat', async (req, res) => {
             timeAllocated: item.timeAllocated,
             videoTitle: firstVideo.videoTitle,
             videoUrl: firstVideo.videoUrl,
+            duration: firstVideo.duration,
             videoOptions: videos, // Store all video options
             currentVideoIndex: 0 // Start with first video
           });
@@ -149,7 +150,7 @@ app.post('/api/chat', async (req, res) => {
       }
     }
     console.log('📦 Final results:', results);
-    
+
     // Store in cache
     try {
       await PlaylistCache.findOneAndUpdate(
@@ -170,7 +171,7 @@ app.post('/api/chat', async (req, res) => {
       console.error('⚠️ Cache storage failed:', cacheError.message);
       // Continue even if cache fails
     }
-    
+
     res.json(results);
   } catch (err) {
     console.log('❌ /api/chat error:', err.message);
@@ -182,7 +183,7 @@ app.post('/api/chat', async (req, res) => {
 app.post('/api/chat/image', upload.single('image'), async (req, res) => {
   const totalMinutes = Number(req.body.totalMinutes) || 0;
   console.log('📍 /api/chat/image called with totalMinutes:', totalMinutes);
-  
+
   if (!totalMinutes || totalMinutes <= 0) {
     return res.status(400).json({ error: 'Valid totalMinutes is required' });
   }
@@ -205,7 +206,7 @@ app.post('/api/chat/image', upload.single('image'), async (req, res) => {
     );
     const ocrText = text.trim();
     console.log('✅ OCR completed. Extracted text length:', ocrText.length);
-    
+
     if (!ocrText || ocrText.length === 0) {
       return res.status(400).json({ error: 'No text could be extracted from the image' });
     }
@@ -239,6 +240,7 @@ app.post('/api/chat/image', upload.single('image'), async (req, res) => {
             timeAllocated: item.timeAllocated,
             videoTitle: firstVideo.videoTitle,
             videoUrl: firstVideo.videoUrl,
+            duration: firstVideo.duration,
             videoOptions: videos,
             currentVideoIndex: 0
           });

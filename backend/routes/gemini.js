@@ -32,6 +32,39 @@ export async function getGeminiSubtopics(topic) {
   }
 }
 
+export async function getGeminiTimeAllocation(subtopics, totalMinutes) {
+  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API);
+  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+  const prompt = `You are a study planning assistant. I have a list of subtopics: ${Array.isArray(subtopics) ? subtopics.join(', ') : subtopics}. 
+  The total available time is ${totalMinutes} minutes.
+  Please assign an importance level ("high", "medium", or "low") to each subtopic and allocate time in minutes for each, so that the total sum is approximately ${totalMinutes} minutes.
+  Return ONLY a JSON array in this format: [ { "subtopic": "Topic name", "importance": "high|medium|low", "timeAllocated": 15 }, ... ]`;
+
+  try {
+    const result = await model.generateContent(prompt);
+    const text = result.response.text();
+    console.log('Raw Gemini Time Allocation response:', text);
+    let json;
+    try {
+      json = JSON.parse(text);
+    } catch (e) {
+      const match = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+      if (match) {
+        try {
+          json = JSON.parse(match[1]);
+        } catch (err) {
+          throw new Error('Gemini API error: Could not parse extracted code block as JSON');
+        }
+      } else {
+        throw new Error('Gemini API error: Could not parse Gemini response as JSON');
+      }
+    }
+    return json;
+  } catch (err) {
+    throw new Error('Gemini API error: ' + (err.message || err));
+  }
+}
+
 // POST /api/gemini/subtopics
 router.post('/subtopics', async (req, res) => {
   const { topic } = req.body;
@@ -43,10 +76,21 @@ router.post('/subtopics', async (req, res) => {
   }
 });
 
+// POST /api/gemini/allocate-time
+router.post('/allocate-time', async (req, res) => {
+  const { subtopics, totalMinutes } = req.body;
+  try {
+    const json = await getGeminiTimeAllocation(subtopics, totalMinutes);
+    res.json(json);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /api/gemini/process-ocr
 router.post('/process-ocr', async (req, res) => {
   const { ocrText, totalMinutes } = req.body;
-  
+
   if (!ocrText) {
     return res.status(400).json({ error: 'OCR text is required' });
   }
@@ -54,7 +98,7 @@ router.post('/process-ocr', async (req, res) => {
   try {
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API);
     const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
-    
+
     const prompt = `You are a study planning assistant. Analyze the following text extracted from an image and create a structured learning plan.
 
 Extracted Text:

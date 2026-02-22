@@ -74,10 +74,10 @@ const generateCacheKey = (topic, totalMinutes) => {
 
 // Main chat endpoint: /api/chat (public - no auth required for generating playlists)
 app.post('/api/chat', async (req, res) => {
-  const { input, totalMinutes } = req.body;
-  console.log('📍 /api/chat called with:', { input, totalMinutes });
+  const { input, totalMinutes, subtopics, language } = req.body;
+  console.log('📍 /api/chat called with:', { input, totalMinutes, subtopics, language });
 
-  const cacheKey = generateCacheKey(input, totalMinutes);
+  const cacheKey = generateCacheKey(input + (subtopics ? JSON.stringify(subtopics) : "") + (language || ""), totalMinutes);
 
   try {
     // Check cache first
@@ -94,18 +94,31 @@ app.post('/api/chat', async (req, res) => {
 
     console.log('❌ Cache miss. Generating new playlist...');
 
-    // 1. Get subtopics from Gemini
-    console.log('🔄 Calling Gemini API...');
-    const geminiRes = await axios.post(
-      `http://localhost:${PORT}/api/gemini/subtopics`,
-      { topic: input }
-    );
-    const subtopics = geminiRes.data;
-    console.log('✅ Gemini subtopics:', subtopics);
-    // 2. Allocate time
-    console.log('⏱️ Allocating time...');
-    const plan = allocateTime(subtopics, totalMinutes);
-    console.log('✅ Time plan:', plan);
+    let plan;
+    if (subtopics && subtopics.length > 0) {
+      console.log('🔄 Calling Gemini to allocate time for provided subtopics...');
+      const geminiRes = await axios.post(
+        `http://localhost:${PORT}/api/gemini/allocate-time`,
+        { subtopics, totalMinutes }
+      );
+      plan = geminiRes.data;
+      console.log('✅ Gemini time allocation:', plan);
+    } else {
+      // 1. Get subtopics from Gemini
+      console.log('🔄 Calling Gemini API to extract subtopics...');
+      const geminiRes = await axios.post(
+        `http://localhost:${PORT}/api/gemini/subtopics`,
+        { topic: input }
+      );
+      const extractedSubtopics = geminiRes.data;
+      console.log('✅ Gemini subtopics:', extractedSubtopics);
+
+      // 2. Allocate time
+      console.log('⏱️ Allocating time...');
+      plan = allocateTime(extractedSubtopics, totalMinutes);
+      console.log('✅ Time plan:', plan);
+    }
+
     // 3. For each subtopic, get YouTube videos
     const results = [];
     for (const item of plan) {
@@ -114,7 +127,7 @@ app.post('/api/chat', async (req, res) => {
       try {
         const ytRes = await axios.post(
           `http://localhost:${PORT}/api/youtube/search`,
-          { query, maxDuration: item.timeAllocated }
+          { query, maxDuration: item.timeAllocated, language }
         );
         // New format: { videos: [...], currentIndex: 0, totalVideos: N }
         const videos = ytRes.data.videos || [];

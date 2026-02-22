@@ -4,7 +4,7 @@ const router = express.Router();
 
 // POST /api/youtube/search
 router.post('/search', async (req, res) => {
-  const { query, maxDuration } = req.body;
+  const { query, maxDuration, language } = req.body;
 
   try {
     const parseDuration = (iso) => {
@@ -18,10 +18,18 @@ router.post('/search', async (req, res) => {
     const minDuration = 2; // minutes - minimum video duration
     const searchMaxResults = 50; // fetch more results to get better options
 
-    console.log(`🔍 YouTube search for: "${query}" (max duration: ${maxDuration} min)`);
-    
+    // Add 10% buffer to maxDuration
+    const bufferedMaxDuration = maxDuration ? maxDuration * 1.1 : null;
+
+    console.log(`🔍 YouTube search for: "${query}" (max duration: ${bufferedMaxDuration} min, language: ${language || 'any'})`);
+
     // Search YouTube videos
-    const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=${searchMaxResults}&q=${encodeURIComponent(query)}&key=${process.env.YOUTUBE_API}`;
+    let searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=${searchMaxResults}&q=${encodeURIComponent(query)}&key=${process.env.YOUTUBE_API}`;
+
+    if (language) {
+      searchUrl += `&relevanceLanguage=${language}`;
+    }
+
     const searchRes = await axios.get(searchUrl);
     const videos = searchRes.data.items;
 
@@ -44,10 +52,10 @@ router.post('/search', async (req, res) => {
         const likeCount = details.statistics?.likeCount ? parseInt(details.statistics.likeCount) : 0;
         const commentCount = details.statistics?.commentCount ? parseInt(details.statistics.commentCount) : 0;
         const viewCount = details.statistics?.viewCount ? parseInt(details.statistics.viewCount) : 0;
-        
+
         // Calculate engagement score (likes + comments normalized by views, with bonus for comments)
-        const engagementScore = viewCount > 0 
-          ? ((likeCount + commentCount * 2) / viewCount) * 1000000 
+        const engagementScore = viewCount > 0
+          ? ((likeCount + commentCount * 2) / viewCount) * 1000000
           : 0;
 
         return {
@@ -64,7 +72,7 @@ router.post('/search', async (req, res) => {
         // Filter out shorts (videos less than 2 minutes)
         if (video.duration < minDuration) return false;
         // Only include videos with duration less than maxDuration
-        if (maxDuration && video.duration >= maxDuration) return false;
+        if (bufferedMaxDuration && video.duration >= bufferedMaxDuration) return false;
         return true;
       });
 
@@ -88,7 +96,7 @@ router.post('/search', async (req, res) => {
     }
 
     console.log(`✅ Found ${filtered.length} videos matching criteria`);
-    
+
     // Return array of videos (sorted by engagement)
     return res.json({
       videos: filtered,

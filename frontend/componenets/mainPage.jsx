@@ -25,7 +25,7 @@ const MainPage = () => {
   const [language, setLanguage] = useState("en");
 
   const totalDurationInMinutes = useMemo(() => {
-    return plan.reduce((sum, item) => sum + (item.duration || 0), 0);
+    return plan.reduce((sum, item) => sum + ((item.duration || 0) / 60), 0);
   }, [plan]);
 
   const totalHours = Math.floor(totalDurationInMinutes / 60);
@@ -507,11 +507,10 @@ const MainPage = () => {
                         </div>
 
                         {/* Video Player */}
-                        <div className="overflow-hidden rounded-[2rem] shadow-2xl shadow-blue-500/10 border border-white/10">
+                        <div className="overflow-hidden rounded-2xl">
                           <YouTubeEmbed
                             videoUrl={item.videoUrl}
                             videoTitle={item.videoTitle}
-                            className="w-full aspect-video"
                           />
                         </div>
                       </div>

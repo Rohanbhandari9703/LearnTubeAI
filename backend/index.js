@@ -288,7 +288,7 @@ app.get('/', (req, res) => {
 
 // Error handling middleware (must be last)
 app.use(errorHandler);
-
+console.log(PORT);
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });

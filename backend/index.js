@@ -192,6 +192,46 @@ app.post('/api/chat', async (req, res) => {
   }
 });
 
+// One-Shot learning endpoint: /api/chat/oneshot
+app.post('/api/chat/oneshot', async (req, res) => {
+  const { input, totalMinutes, language } = req.body;
+  console.log('📍 /api/chat/oneshot called with:', { input, totalMinutes, language });
+
+  if (!input || !totalMinutes) {
+    return res.status(400).json({ error: 'input and totalMinutes are required' });
+  }
+
+  try {
+    // Directly search YouTube for the full topic — no Gemini subtopic breakdown
+    const ytRes = await axios.post(
+      `http://localhost:${PORT}/api/youtube/search`,
+      {
+        query: input,
+        maxDuration: totalMinutes, // total available time in minutes
+        language
+      }
+    );
+
+    const allVideos = ytRes.data.videos || [];
+
+    // Return top 5 videos
+    const top5 = allVideos.slice(0, 5);
+
+    console.log(`✅ One-shot: Found ${allVideos.length} videos, returning top ${top5.length}`);
+
+    return res.json({
+      query: input,
+      videos: top5,
+      totalDuration: top5.reduce((sum, v) => sum + (v.duration || 0), 0),
+      targetTime: totalMinutes * 60,
+      count: top5.length
+    });
+  } catch (err) {
+    console.log('❌ /api/chat/oneshot error:', err.message);
+    res.status(500).json({ error: err.response?.data?.error || err.message });
+  }
+});
+
 // OCR-based chat endpoint: /api/chat/image
 app.post('/api/chat/image', upload.single('image'), async (req, res) => {
   const totalMinutes = Number(req.body.totalMinutes) || 0;

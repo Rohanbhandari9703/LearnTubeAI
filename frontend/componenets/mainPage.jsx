@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import axios from "axios";
-import { motion } from "framer-motion";
-import { CheckCircle2, Circle, RefreshCw, Edit2, Save, Clock, Sparkles } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { CheckCircle2, Circle, RefreshCw, Edit2, Save, Clock, Sparkles, BookOpen, Zap, ArrowLeft, Play, Eye } from "lucide-react";
 import YouTubeEmbed from "./YouTubeEmbed";
 import ProgressDashboard from "./ProgressDashboard";
 import { Link } from "react-router-dom";
@@ -23,6 +23,10 @@ const MainPage = () => {
   const [showSubtopics, setShowSubtopics] = useState(false);
   const [customSubtopics, setCustomSubtopics] = useState("");
   const [language, setLanguage] = useState("en");
+  const [showModeSelection, setShowModeSelection] = useState(false);
+  const [oneShotVideos, setOneShotVideos] = useState([]);
+  const [oneShotLoading, setOneShotLoading] = useState(false);
+  const [learningMode, setLearningMode] = useState(null); // null | "topicwise" | "oneshot"
 
   const totalDurationInMinutes = useMemo(() => {
     return plan.reduce((sum, item) => sum + ((item.duration || 0) / 60), 0);
@@ -31,12 +35,22 @@ const MainPage = () => {
   const totalHours = Math.floor(totalDurationInMinutes / 60);
   const remainingMinutes = Math.round(totalDurationInMinutes % 60);
 
-  const handleGenerate = async () => {
+  // Show mode selection when user clicks "Build My Study Plan"
+  const handleShowModeSelection = () => {
     if (!subject || !time) {
       setFormError("Please fill all the fields");
       return;
     }
     setFormError("");
+    setError("");
+    setShowModeSelection(true);
+  };
+
+  // Topic-wise mode (existing Gemini flow)
+  const handleGenerate = async () => {
+    setShowModeSelection(false);
+    setLearningMode("topicwise");
+    setOneShotVideos([]);
     setLoading(true);
     setError("");
     setPlan([]);
@@ -50,7 +64,6 @@ const MainPage = () => {
         language: language
       });
       setPlan(res.data);
-      // Reset completed videos when generating new plan
       setCompletedVideos(new Set());
       localStorage.removeItem("completedVideos");
     } catch (err) {
@@ -58,6 +71,31 @@ const MainPage = () => {
     }
 
     setLoading(false);
+  };
+
+  // One-shot mode (direct YouTube search)
+  const handleOneShot = async () => {
+    setShowModeSelection(false);
+    setLearningMode("oneshot");
+    setPlan([]);
+    setOneShotLoading(true);
+    setError("");
+    setOneShotVideos([]);
+
+    try {
+      const res = await axios.post("http://localhost:5000/api/chat/oneshot", {
+        input: subject,
+        totalMinutes: Number(time) * 60,
+        language: language
+      });
+      setOneShotVideos(res.data.videos || []);
+      setCompletedVideos(new Set());
+      localStorage.removeItem("completedVideos");
+    } catch (err) {
+      setError(err.response?.data?.error || "Network error");
+    }
+
+    setOneShotLoading(false);
   };
 
   // Load plan and progress from localStorage
@@ -357,14 +395,14 @@ const MainPage = () => {
         )}
 
         <button
-          onClick={handleGenerate}
-          disabled={loading}
+          onClick={handleShowModeSelection}
+          disabled={loading || oneShotLoading}
           className="w-full py-5 rounded-[1.5rem] bg-blue-600 hover:bg-blue-700 text-white transition-all duration-300 shadow-xl shadow-blue-500/20 font-black text-xl hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-3 disabled:opacity-50"
         >
-          {loading ? (
+          {(loading || oneShotLoading) ? (
             <>
               <RefreshCw className="animate-spin" size={24} />
-              <span>Planning Session...</span>
+              <span>{loading ? "Planning Session..." : "Finding Videos..."}</span>
             </>
           ) : (
             "Build My Study Plan"
@@ -375,7 +413,217 @@ const MainPage = () => {
         {error && <p className="text-red-500 bg-red-500/10 py-3 px-4 rounded-xl text-center font-medium border border-red-500/20">{error}</p>}
       </div>
 
-      {/* Plan Section */}
+      {/* Mode Selection Overlay */}
+      <AnimatePresence>
+        {showModeSelection && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-6"
+            onClick={() => setShowModeSelection(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 30 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 30 }}
+              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              className="max-w-3xl w-full bg-white dark:bg-zinc-900 rounded-[2.5rem] p-10 shadow-2xl border border-zinc-200 dark:border-zinc-800"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h2 className="text-3xl font-black text-center mb-2 tracking-tight">
+                How do you want to <span className="text-blue-500">learn?</span>
+              </h2>
+              <p className="text-zinc-500 text-center mb-10 font-medium">
+                Choose your learning style for <span className="text-zinc-700 dark:text-zinc-300 font-bold">"{subject}"</span>
+              </p>
+
+              <div className="grid md:grid-cols-2 gap-6">
+                {/* Topic-Wise Card */}
+                <button
+                  onClick={handleGenerate}
+                  className="group relative overflow-hidden rounded-[2rem] p-8 text-left border-2 border-zinc-200 dark:border-zinc-700 hover:border-blue-500 dark:hover:border-blue-500 transition-all duration-300 hover:shadow-xl hover:shadow-blue-500/10 bg-zinc-50/50 dark:bg-zinc-800/50"
+                >
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 rounded-full -translate-y-1/2 translate-x-1/2 group-hover:scale-150 transition-transform duration-500" />
+                  <div className="relative">
+                    <div className="w-14 h-14 rounded-2xl bg-blue-500/10 flex items-center justify-center mb-5">
+                      <BookOpen className="text-blue-500" size={28} />
+                    </div>
+                    <h3 className="text-2xl font-black mb-2 text-zinc-900 dark:text-white">Topic-Wise</h3>
+                    <p className="text-zinc-500 dark:text-zinc-400 text-sm leading-relaxed">
+                      AI breaks your subject into subtopics, allocates time to each, and finds the best video per topic.
+                    </p>
+                    <div className="mt-5 flex items-center gap-2 text-blue-500 font-bold text-sm">
+                      <Sparkles size={16} />
+                      Powered by Gemini AI
+                    </div>
+                  </div>
+                </button>
+
+                {/* One-Shot Card */}
+                <button
+                  onClick={handleOneShot}
+                  className="group relative overflow-hidden rounded-[2rem] p-8 text-left border-2 border-zinc-200 dark:border-zinc-700 hover:border-emerald-500 dark:hover:border-emerald-500 transition-all duration-300 hover:shadow-xl hover:shadow-emerald-500/10 bg-zinc-50/50 dark:bg-zinc-800/50"
+                >
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full -translate-y-1/2 translate-x-1/2 group-hover:scale-150 transition-transform duration-500" />
+                  <div className="relative">
+                    <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 flex items-center justify-center mb-5">
+                      <Zap className="text-emerald-500" size={28} />
+                    </div>
+                    <h3 className="text-2xl font-black mb-2 text-zinc-900 dark:text-white">One-Shot</h3>
+                    <p className="text-zinc-500 dark:text-zinc-400 text-sm leading-relaxed">
+                      Get the 5 best YouTube videos on this topic instantly. Quick and straight to the point.
+                    </p>
+                    <div className="mt-5 flex items-center gap-2 text-emerald-500 font-bold text-sm">
+                      <Zap size={16} />
+                      Instant YouTube Search
+                    </div>
+                  </div>
+                </button>
+              </div>
+
+              <button
+                onClick={() => setShowModeSelection(false)}
+                className="mt-8 w-full py-3 text-center text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 font-semibold transition-colors"
+              >
+                Cancel
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* One-Shot Results Section */}
+      {oneShotVideos.length > 0 && learningMode === "oneshot" && (
+        <div className="max-w-5xl mx-auto mt-24">
+          <div className="flex flex-wrap justify-between items-end gap-6 mb-12 px-2">
+            <div>
+              <h2 className="text-4xl font-black tracking-tight mb-2">
+                <span className="text-emerald-500">One-Shot</span> Videos
+              </h2>
+              <p className="text-zinc-500 font-medium">Top {oneShotVideos.length} videos for "{subject}" — pick any and start learning.</p>
+            </div>
+            <button
+              onClick={() => { setOneShotVideos([]); setLearningMode(null); }}
+              className="flex items-center gap-2 px-6 py-3 rounded-2xl glass border border-zinc-200 dark:border-zinc-800 font-bold hover:bg-white dark:hover:bg-zinc-800 transition-all text-zinc-600 dark:text-zinc-300"
+            >
+              <ArrowLeft size={18} />
+              Try Topic-Wise
+            </button>
+          </div>
+
+          <div className="space-y-8">
+            {oneShotVideos.map((video, idx) => {
+              const isCompleted = video.videoUrl && completedVideos.has(video.videoUrl);
+              const durationMin = Math.floor((video.duration || 0) / 60);
+              const durationSec = (video.duration || 0) % 60;
+
+              return (
+                <motion.div
+                  key={video.videoId || idx}
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: idx * 0.08 }}
+                  className={`glass rounded-[2.5rem] p-8 md:p-10 shadow-2xl transition-all duration-500 hover:shadow-emerald-500/10 border ${
+                    isCompleted
+                      ? 'border-green-500/30 bg-green-500/[0.02]'
+                      : 'border-white/20 dark:border-white/5'
+                  }`}
+                >
+                  <div className="space-y-6">
+                    {/* Video Header */}
+                    <div className="flex flex-wrap items-start justify-between gap-4">
+                      <div className="flex gap-5 items-start flex-1 min-w-[280px]">
+                        <button
+                          onClick={() => toggleVideoCompletion(video.videoUrl)}
+                          className="flex-shrink-0 mt-1 transition-all hover:scale-110 active:scale-90"
+                        >
+                          {isCompleted ? (
+                            <div className="w-10 h-10 rounded-full bg-green-500 flex items-center justify-center text-white shadow-lg shadow-green-500/20">
+                              <CheckCircle2 size={24} />
+                            </div>
+                          ) : (
+                            <div className="w-10 h-10 rounded-full border-2 border-zinc-200 dark:border-zinc-700 flex items-center justify-center text-zinc-400 hover:border-emerald-500 hover:text-emerald-500 transition-colors">
+                              <Circle size={24} />
+                            </div>
+                          )}
+                        </button>
+                        <div>
+                          <div className="flex items-center gap-3 mb-2 flex-wrap">
+                            <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-emerald-500/10 text-emerald-500">
+                              #{idx + 1}
+                            </span>
+                            <span className="text-zinc-400 text-xs font-bold uppercase tracking-widest">{video.channel}</span>
+                          </div>
+                          <h3 className={`text-2xl md:text-3xl font-black leading-tight transition-all ${
+                            isCompleted ? 'opacity-50 line-through' : 'text-zinc-900 dark:text-white'
+                          }`}>
+                            {video.videoTitle}
+                          </h3>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-3 items-center">
+                        <div className="px-5 py-3 rounded-2xl bg-zinc-50 dark:bg-black/40 border border-zinc-200 dark:border-zinc-800 flex items-center gap-3">
+                          <Clock size={16} className="text-emerald-500" />
+                          <span className="font-bold text-zinc-700 dark:text-zinc-300">{durationMin}m {durationSec}s</span>
+                        </div>
+                        {video.views && (
+                          <div className="px-4 py-3 rounded-2xl bg-zinc-50 dark:bg-black/40 border border-zinc-200 dark:border-zinc-800 flex items-center gap-2">
+                            <Eye size={14} className="text-zinc-400" />
+                            <span className="font-bold text-zinc-700 dark:text-zinc-300 text-sm">
+                              {video.views >= 1000000 ? `${(video.views / 1000000).toFixed(1)}M` : video.views >= 1000 ? `${(video.views / 1000).toFixed(0)}K` : video.views}
+                            </span>
+                          </div>
+                        )}
+                        {video.isTrusted && (
+                          <div className="px-3 py-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center gap-1">
+                            <Sparkles size={14} className="text-amber-500" />
+                            <span className="text-amber-500 font-bold text-xs">Trusted</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Video Player */}
+                    <div className="overflow-hidden rounded-2xl">
+                      <YouTubeEmbed
+                        videoUrl={video.videoUrl}
+                        videoTitle={video.videoTitle}
+                      />
+                    </div>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
+
+          {/* Summary */}
+          <div className="mt-20 glass rounded-[2.5rem] p-10 flex flex-wrap justify-between items-center gap-8 border border-white/20 dark:border-white/5">
+            <div className="flex gap-10">
+              <div className="flex flex-col">
+                <span className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-1">Total Duration</span>
+                <span className="text-2xl font-black text-emerald-500">
+                  {Math.floor(oneShotVideos.reduce((s, v) => s + (v.duration || 0), 0) / 60)}m
+                </span>
+              </div>
+              <div className="flex flex-col border-l border-zinc-200 dark:border-zinc-800 pl-10">
+                <span className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-1">Videos</span>
+                <span className="text-2xl font-black text-emerald-500">{oneShotVideos.length}</span>
+              </div>
+            </div>
+            <Link
+              to="/home"
+              className="px-8 py-4 rounded-2xl bg-zinc-100 dark:bg-zinc-800 font-bold hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all flex items-center gap-2"
+            >
+              Start New Topic
+            </Link>
+          </div>
+        </div>
+      )}
+
+      {/* Plan Section (Topic-Wise) */}
       {plan.length > 0 && (
         <div className="max-w-5xl mx-auto mt-24">
           <div className="flex flex-wrap justify-between items-end gap-6 mb-12 px-2">
